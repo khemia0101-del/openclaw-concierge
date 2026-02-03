@@ -1,6 +1,16 @@
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import { 
+  InsertUser, 
+  User, 
+  users, 
+  subscriptions, 
+  InsertSubscription,
+  aiInstances,
+  InsertAIInstance,
+  billingRecords,
+  InsertBillingRecord
+} from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -18,7 +28,7 @@ export async function getDb() {
   return _db;
 }
 
-export async function upsertUser(user: InsertUser): Promise<void> {
+export async function upsertUser(user: Partial<InsertUser> & { openId: string }): Promise<void> {
   if (!user.openId) {
     throw new Error("User openId is required for upsert");
   }
@@ -30,46 +40,46 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   }
 
   try {
-    const values: InsertUser = {
+    const values: Record<string, unknown> = {
       openId: user.openId,
+      email: user.email || `${user.openId}@temp.openclaw.local`,
     };
     const updateSet: Record<string, unknown> = {};
 
-    const textFields = ["name", "email", "loginMethod"] as const;
-    type TextField = (typeof textFields)[number];
-
-    const assignNullable = (field: TextField) => {
-      const value = user[field];
-      if (value === undefined) return;
-      const normalized = value ?? null;
-      values[field] = normalized;
-      updateSet[field] = normalized;
-    };
-
-    textFields.forEach(assignNullable);
+    if (user.name !== undefined) {
+      values.name = user.name ?? null;
+      updateSet.name = user.name ?? null;
+    }
+    if (user.passwordHash !== undefined) {
+      values.passwordHash = user.passwordHash ?? null;
+      updateSet.passwordHash = user.passwordHash ?? null;
+    }
+    if (user.loginMethod !== undefined) {
+      values.loginMethod = user.loginMethod ?? null;
+      updateSet.loginMethod = user.loginMethod ?? null;
+    }
 
     if (user.lastSignedIn !== undefined) {
       values.lastSignedIn = user.lastSignedIn;
       updateSet.lastSignedIn = user.lastSignedIn;
+    } else {
+      values.lastSignedIn = new Date();
+      updateSet.lastSignedIn = new Date();
     }
+
     if (user.role !== undefined) {
       values.role = user.role;
       updateSet.role = user.role;
     } else if (user.openId === ENV.ownerOpenId) {
       values.role = 'admin';
       updateSet.role = 'admin';
+    } else {
+      values.role = 'user';
+      updateSet.role = 'user';
     }
 
-    if (!values.lastSignedIn) {
-      values.lastSignedIn = new Date();
-    }
-
-    if (Object.keys(updateSet).length === 0) {
-      updateSet.lastSignedIn = new Date();
-    }
-
-    await db.insert(users).values(values).onDuplicateKeyUpdate({
-      set: updateSet,
+    await db.insert(users).values(values as InsertUser).onDuplicateKeyUpdate({
+      set: updateSet as any,
     });
   } catch (error) {
     console.error("[Database] Failed to upsert user:", error);
@@ -77,7 +87,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   }
 }
 
-export async function getUserByOpenId(openId: string) {
+export async function getUserByOpenId(openId: string): Promise<User | undefined> {
   const db = await getDb();
   if (!db) {
     console.warn("[Database] Cannot get user: database not available");
@@ -85,8 +95,70 @@ export async function getUserByOpenId(openId: string) {
   }
 
   const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
-
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+// Subscription queries
+export async function createSubscription(data: Partial<InsertSubscription> & { userId: number; tier: 'starter' | 'pro' | 'business' }) {
+  const db = await getDb();
+  if (!db) throw new Error('Database not available');
+  
+  const result = await db.insert(subscriptions).values(data as any);
+  return result;
+}
+
+export async function getSubscriptionByUserId(userId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  
+  const result = await db.select().from(subscriptions).where(eq(subscriptions.userId, userId)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function updateSubscription(id: number, data: Partial<InsertSubscription>) {
+  const db = await getDb();
+  if (!db) throw new Error('Database not available');
+  
+  await db.update(subscriptions).set(data as any).where(eq(subscriptions.id, id));
+}
+
+// AI Instance queries
+export async function createAIInstance(data: Partial<InsertAIInstance> & { userId: number; subscriptionId: number }) {
+  const db = await getDb();
+  if (!db) throw new Error('Database not available');
+  
+  const result = await db.insert(aiInstances).values(data as any);
+  return result;
+}
+
+export async function getAIInstanceByUserId(userId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  
+  const result = await db.select().from(aiInstances).where(eq(aiInstances.userId, userId)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function updateAIInstance(id: number, data: Partial<InsertAIInstance>) {
+  const db = await getDb();
+  if (!db) throw new Error('Database not available');
+  
+  await db.update(aiInstances).set(data as any).where(eq(aiInstances.id, id));
+}
+
+// Billing queries
+export async function createBillingRecord(data: Partial<InsertBillingRecord> & { userId: number; type: 'setup_fee' | 'monthly_subscription' | 'usage_credit' | 'refund'; amount: string }) {
+  const db = await getDb();
+  if (!db) throw new Error('Database not available');
+  
+  const result = await db.insert(billingRecords).values(data as any);
+  return result;
+}
+
+export async function getBillingRecordsByUserId(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const result = await db.select().from(billingRecords).where(eq(billingRecords.userId, userId));
+  return result;
+}
