@@ -13,7 +13,7 @@ export default function Home() {
       {/* Hero Section */}
       <section className="container py-20 md:py-32">
         <div className="flex flex-col items-center text-center space-y-8">
-          {/* Animated Crab/Logo Placeholder */}
+          {/* Animated Logo Placeholder */}
           <div className="w-24 h-24 rounded-full bg-primary/20 flex items-center justify-center animate-float">
             <Cpu className="w-12 h-12 text-primary" />
           </div>
@@ -21,19 +21,19 @@ export default function Home() {
           <div className="space-y-4 max-w-4xl">
             <Badge variant="outline" className="border-secondary text-secondary px-4 py-1.5 text-sm font-medium">
               <Sparkles className="w-3 h-3 mr-1.5 inline" />
-              NEW Introducing OpenClaw Concierge →
+              NEW Integrate Fast OpenClaw Concierge →
             </Badge>
             
             <h1 className="text-5xl md:text-7xl font-bold tracking-tight">
-              OpenClaw
+              Integrate Fast
             </h1>
             
             <p className="text-2xl md:text-3xl font-semibold text-primary">
-              THE AI THAT ACTUALLY DOES THINGS.
+              YOUR PERSONAL OPENCLAW AI IN 60 SECONDS.
             </p>
             
             <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
-              Get your personal AI assistant deployed in under 60 seconds. No API keys. No Docker. No configuration files. Just answer a few questions, pay once, and your AI employee is ready to work.
+              We deploy and configure your OpenClaw AI assistant so you don't have to. No API keys. No Docker. No technical knowledge required. Just answer a few questions, pay once, and your AI employee is ready to work.
             </p>
           </div>
           
@@ -44,7 +44,7 @@ export default function Home() {
               asChild
             >
               <Link href="/onboarding">
-                Get Started →
+                Get Your OpenClaw AI →
               </Link>
             </Button>
             
@@ -71,16 +71,20 @@ export default function Home() {
               <Check className="w-4 h-4 text-secondary" />
               <span>60-Second Setup</span>
             </div>
+            <div className="flex items-center gap-2">
+              <Check className="w-4 h-4 text-secondary" />
+              <span>Fully Managed Service</span>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* What It Does Section */}
+      {/* What You Get Section */}
       <section className="container py-16">
         <div className="text-center mb-12">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">What It Does</h2>
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">What You Get</h2>
           <p className="text-muted-foreground text-lg">
-            Your personal AI assistant that actually gets things done
+            A fully configured OpenClaw AI assistant, ready to work for you
           </p>
         </div>
         
@@ -88,33 +92,33 @@ export default function Home() {
           {[
             {
               icon: Cpu,
-              title: "Runs on Your Machine",
-              description: "Deployed on DigitalOcean. Fully managed infrastructure. Your data stays yours.",
+              title: "Deployed & Configured",
+              description: "We handle all the technical setup on DigitalOcean. Your OpenClaw instance is provisioned, configured, and ready to use.",
             },
             {
               icon: MessageSquare,
-              title: "Any Chat App",
-              description: "Talk to it on Telegram, WhatsApp, Discord, Slack, Signal, or any chat app you already use.",
+              title: "Your Choice of Platform",
+              description: "Connect to Telegram, WhatsApp, Discord, Slack, Signal, or any chat app. We configure it exactly how you want it.",
             },
             {
               icon: Sparkles,
               title: "Persistent Memory",
-              description: "Remembers you and becomes uniquely yours. Your preferences, your context, your AI.",
+              description: "Your AI remembers conversations and context. It learns your preferences and becomes uniquely yours over time.",
             },
             {
               icon: Zap,
-              title: "Browser Control",
-              description: "It can browse the web, fill forms, and interact with any website on your behalf.",
+              title: "Full Capabilities",
+              description: "Browser automation, file operations, shell commands, API integrations. Your AI has everything it needs to get work done.",
             },
             {
               icon: Shield,
-              title: "Full System Access",
-              description: "Read and write files, run shell commands, execute scripts. Full access to get work done.",
+              title: "Secure & Private",
+              description: "Isolated instance on enterprise infrastructure. Your data stays yours. Bank-level security and encryption.",
             },
             {
               icon: Sparkles,
-              title: "Skills & Plugins",
-              description: "Extend with community skills or build your own. It can even write its own skills.",
+              title: "Ongoing Support",
+              description: "We monitor your instance and provide support. Updates, maintenance, and troubleshooting included.",
             },
           ].map((feature, i) => (
             <Card 
@@ -132,9 +136,9 @@ export default function Home() {
       {/* Pricing Section */}
       <section className="container py-16">
         <div className="text-center mb-12">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">Simple Pricing</h2>
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">Simple, Transparent Pricing</h2>
           <p className="text-muted-foreground text-lg">
-            Choose the plan that fits your needs
+            One-time setup + monthly hosting. No hidden fees.
           </p>
         </div>
         
@@ -145,10 +149,11 @@ export default function Home() {
               setup: "$500",
               monthly: "$99",
               features: [
-                "Basic AI capabilities",
+                "Full OpenClaw deployment",
                 "Email support",
-                "1,000 tokens/month",
-                "Telegram integration",
+                "1,000 AI tokens/month",
+                "Single platform integration",
+                "Basic monitoring",
               ],
             },
             {
@@ -156,11 +161,12 @@ export default function Home() {
               setup: "$750",
               monthly: "$199",
               features: [
-                "Advanced AI capabilities",
+                "Full OpenClaw deployment",
                 "Priority support",
-                "5,000 tokens/month",
-                "Multi-channel integration",
-                "Custom skills",
+                "5,000 AI tokens/month",
+                "Multi-platform integration",
+                "Advanced monitoring",
+                "Custom skills installation",
               ],
               popular: true,
             },
@@ -169,10 +175,11 @@ export default function Home() {
               setup: "$1,000",
               monthly: "$299",
               features: [
-                "Enterprise AI capabilities",
-                "24/7 support",
-                "Unlimited tokens",
-                "All integrations",
+                "Full OpenClaw deployment",
+                "24/7 dedicated support",
+                "Unlimited AI tokens",
+                "All platform integrations",
+                "Real-time monitoring",
                 "Custom development",
                 "Dedicated account manager",
               ],
@@ -196,8 +203,9 @@ export default function Home() {
                 <h3 className="text-2xl font-bold mb-2">{plan.name}</h3>
                 <div className="space-y-1">
                   <div className="text-3xl font-bold text-primary">{plan.setup}</div>
-                  <div className="text-sm text-muted-foreground">setup fee</div>
+                  <div className="text-sm text-muted-foreground">one-time setup</div>
                   <div className="text-2xl font-semibold">{plan.monthly}/mo</div>
+                  <div className="text-xs text-muted-foreground">hosting & support</div>
                 </div>
               </div>
               
@@ -227,14 +235,54 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Why Integrate Fast Section */}
+      <section className="container py-16">
+        <div className="text-center mb-12">
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">Why Integrate Fast?</h2>
+          <p className="text-muted-foreground text-lg">
+            We're AI implementation experts who make complex technology simple
+          </p>
+        </div>
+        
+        <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+          <Card className="p-8 border-2 border-dashed border-secondary/50">
+            <h3 className="text-xl font-semibold mb-3 text-primary">No Technical Expertise Needed</h3>
+            <p className="text-muted-foreground">
+              OpenClaw is powerful but complex to set up. We handle all the technical details—Docker containers, environment variables, API configurations, platform integrations—so you don't have to learn any of it.
+            </p>
+          </Card>
+          
+          <Card className="p-8 border-2 border-dashed border-secondary/50">
+            <h3 className="text-xl font-semibold mb-3 text-primary">Faster Than DIY</h3>
+            <p className="text-muted-foreground">
+              Setting up OpenClaw yourself takes days of research, troubleshooting, and configuration. With Integrate Fast, you're up and running in under 60 seconds. We've done this hundreds of times.
+            </p>
+          </Card>
+          
+          <Card className="p-8 border-2 border-dashed border-secondary/50">
+            <h3 className="text-xl font-semibold mb-3 text-primary">Ongoing Support & Maintenance</h3>
+            <p className="text-muted-foreground">
+              Your AI assistant needs updates, monitoring, and occasional troubleshooting. We handle all of that. You just use it. If something breaks, we fix it.
+            </p>
+          </Card>
+          
+          <Card className="p-8 border-2 border-dashed border-secondary/50">
+            <h3 className="text-xl font-semibold mb-3 text-primary">Enterprise-Grade Infrastructure</h3>
+            <p className="text-muted-foreground">
+              Your OpenClaw runs on DigitalOcean's managed infrastructure with automatic backups, security patches, and 99.9% uptime. We optimize performance and costs so you don't have to.
+            </p>
+          </Card>
+        </div>
+      </section>
+
       {/* CTA Section */}
       <section className="container py-20">
         <Card className="p-12 text-center border-2 border-dashed border-secondary bg-card/50">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            Ready to Get Your AI Assistant?
+            Ready to Get Your OpenClaw AI?
           </h2>
           <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
-            Join hundreds of users who are already using OpenClaw to automate their workflows and boost productivity.
+            Join professionals who've automated their workflows with Integrate Fast's OpenClaw Concierge service. Setup takes less than 60 seconds.
           </p>
           <Button 
             size="lg" 
@@ -242,7 +290,7 @@ export default function Home() {
             asChild
           >
             <Link href="/onboarding">
-              Start Your 60-Second Setup →
+              Start Your Setup Now →
             </Link>
           </Button>
         </Card>
@@ -251,7 +299,8 @@ export default function Home() {
       {/* Footer */}
       <footer className="container py-8 border-t border-secondary/20">
         <div className="text-center text-sm text-muted-foreground">
-          <p>© 2026 OpenClaw Concierge. Built with ❤️ for non-technical users.</p>
+          <p>© 2026 Integrate Fast. OpenClaw Concierge Service.</p>
+          <p className="mt-2">AI Implementation Experts | <a href="https://integratefast.com" className="text-secondary hover:underline">integratefast.com</a></p>
         </div>
       </footer>
     </div>
