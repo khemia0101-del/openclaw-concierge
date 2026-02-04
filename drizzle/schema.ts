@@ -109,6 +109,24 @@ export type UsageMetric = typeof usageMetrics.$inferSelect;
 export type InsertUsageMetric = typeof usageMetrics.$inferInsert;
 
 /**
+ * Leads table - captures all email signups for marketing follow-up
+ */
+export const leads = mysqlTable("leads", {
+  id: int("id").autoincrement().primaryKey(),
+  email: varchar("email", { length: 320 }).notNull().unique(),
+  selectedTier: mysqlEnum("selectedTier", ["starter", "pro", "business"]),
+  status: mysqlEnum("status", ["lead", "checkout_started", "paid", "abandoned"]).default("lead").notNull(),
+  stripeSessionId: varchar("stripeSessionId", { length: 255 }),
+  userId: int("userId"), // Null until they complete signup
+  source: varchar("source", { length: 100 }).default("onboarding").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Lead = typeof leads.$inferSelect;
+export type InsertLead = typeof leads.$inferInsert;
+
+/**
  * Relations for foreign keys
  */
 // Removed - see usersRelationsUpdated at bottom of file

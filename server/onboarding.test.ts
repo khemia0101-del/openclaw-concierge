@@ -27,6 +27,7 @@ describe("Onboarding Flow", () => {
       email: "test@example.com",
       tier: "starter",
       userId: 123,
+      origin: "https://test.example.com",
     });
 
     expect(result).toHaveProperty("sessionUrl");
@@ -44,6 +45,7 @@ describe("Onboarding Flow", () => {
         email: "invalid-email",
         tier: "starter",
         userId: 123,
+        origin: "https://test.example.com",
       })
     ).rejects.toThrow();
   });
@@ -57,6 +59,7 @@ describe("Onboarding Flow", () => {
         email: "test@example.com",
         tier: "invalid" as any,
         userId: 123,
+        origin: "https://test.example.com",
       })
     ).rejects.toThrow();
   });

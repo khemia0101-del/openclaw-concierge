@@ -9,7 +9,9 @@ import {
   aiInstances,
   InsertAIInstance,
   billingRecords,
-  InsertBillingRecord
+  InsertBillingRecord,
+  leads,
+  InsertLead
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -161,4 +163,43 @@ export async function getBillingRecordsByUserId(userId: number) {
   
   const result = await db.select().from(billingRecords).where(eq(billingRecords.userId, userId));
   return result;
+}
+
+// Lead capture queries
+export async function captureLead(data: Partial<InsertLead> & { email: string }) {
+  const db = await getDb();
+  if (!db) throw new Error('Database not available');
+  
+  try {
+    // Use onDuplicateKeyUpdate to prevent errors on duplicate emails
+    await db.insert(leads).values(data as any).onDuplicateKeyUpdate({
+      set: {
+        selectedTier: data.selectedTier,
+        status: data.status || 'lead',
+        updatedAt: new Date(),
+      } as any,
+    });
+  } catch (error) {
+    console.error('[Database] Failed to capture lead:', error);
+    // Don't throw - we don't want lead capture to block the user flow
+  }
+}
+
+export async function getLeadByEmail(email: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  
+  const result = await db.select().from(leads).where(eq(leads.email, email)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function updateLeadStatus(email: string, status: 'lead' | 'checkout_started' | 'paid' | 'abandoned', stripeSessionId?: string, userId?: number) {
+  const db = await getDb();
+  if (!db) throw new Error('Database not available');
+  
+  const updateData: any = { status, updatedAt: new Date() };
+  if (stripeSessionId) updateData.stripeSessionId = stripeSessionId;
+  if (userId) updateData.userId = userId;
+  
+  await db.update(leads).set(updateData).where(eq(leads.email, email));
 }

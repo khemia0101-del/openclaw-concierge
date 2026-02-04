@@ -173,3 +173,16 @@
 - [x] Wire up deployment logic to existing deployInstance mutation
 - [x] Add route to App.tsx
 - [ ] Test full flow: payment → configure → deploy → success
+
+## Phase 22: Fix Stripe Redirect URLs (CRITICAL BUG)
+- [x] Update Stripe checkout to use window.location.origin instead of hardcoded localhost
+- [x] Update backend to accept origin parameter
+- [x] Update frontend to pass window.location.origin
+- [x] Test payment flow redirects to correct URL
+
+## Phase 23: Email Lead Capture for Marketing
+- [x] Create leads table in database schema
+- [x] Add lead capture when email is entered in onboarding
+- [x] Prevent duplicate email entries (onDuplicateKeyUpdate)
+- [x] Track conversion status (lead → checkout_started → paid)
+- [x] Update lead status with Stripe session ID

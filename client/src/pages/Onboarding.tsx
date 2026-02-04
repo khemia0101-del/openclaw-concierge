@@ -77,6 +77,7 @@ export default function Onboarding() {
         email,
         tier: selectedTier,
         userId: tempUserId,
+        origin: window.location.origin,
       });
       
       // Redirect to Stripe Checkout

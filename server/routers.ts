@@ -29,15 +29,27 @@ export const appRouter = router({
         email: z.string().email(),
         tier: z.enum(['starter', 'pro', 'business']),
         userId: z.number(),
+        origin: z.string().url(),
       }))
       .mutation(async ({ input }) => {
+        // Capture lead for marketing follow-up
+        await db.captureLead({
+          email: input.email,
+          selectedTier: input.tier,
+          status: 'checkout_started',
+          source: 'onboarding',
+        });
+        
         const session = await stripeService.createCheckoutSession({
           customerEmail: input.email,
           tier: input.tier,
           userId: input.userId,
-          successUrl: `${process.env.VITE_APP_URL || 'http://localhost:3000'}/onboarding/configure?session_id={CHECKOUT_SESSION_ID}`,
-          cancelUrl: `${process.env.VITE_APP_URL || 'http://localhost:3000'}/onboarding/payment`,
+          successUrl: `${input.origin}/onboarding/configure?session_id={CHECKOUT_SESSION_ID}`,
+          cancelUrl: `${input.origin}/onboarding/payment`,
         });
+        
+        // Update lead with Stripe session ID
+        await db.updateLeadStatus(input.email, 'checkout_started', session.id);
         
         return { sessionUrl: session.url || '', sessionId: session.id };
       }),
