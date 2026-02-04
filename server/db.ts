@@ -105,6 +105,10 @@ export async function createSubscription(data: Partial<InsertSubscription> & { u
   const db = await getDb();
   if (!db) throw new Error('Database not available');
   
+  console.log('[createSubscription] Received data:', JSON.stringify(data, null, 2));
+  console.log('[createSubscription] Data keys:', Object.keys(data));
+  console.log('[createSubscription] Data values:', Object.values(data));
+  
   const result = await db.insert(subscriptions).values(data as any);
   return result;
 }

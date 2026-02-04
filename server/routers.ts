@@ -111,6 +111,7 @@ export const appRouter = router({
           subscriptionData.stripeSubscriptionId = stripeSubscriptionId;
         }
         
+        console.log('[verifyPayment] Subscription data being inserted:', JSON.stringify(subscriptionData, null, 2));
         await db.createSubscription(subscriptionData);
         
         // Create billing record

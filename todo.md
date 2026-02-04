@@ -280,3 +280,11 @@
 - [x] Verify database schema matches insert parameters
 - [x] Identify why NULL values still appear as empty strings
 - [x] Fix the actual root cause: Drizzle ORM doesn't handle null properly, use undefined and conditionally include fields
+
+## Phase 35: Systematic Database Schema Debugging (RALPH WIGGUM LOOP)
+- [ ] Check if database migrations are up to date
+- [ ] Query actual database schema to see real column structure
+- [ ] Compare actual database columns vs schema.ts definition
+- [ ] Run db:push to sync schema if needed
+- [ ] Verify insert statement matches actual database structure
+- [ ] Test subscription creation with correct column mapping
