@@ -76,15 +76,15 @@ export const appRouter = router({
         // Create subscription record
         const monthlyPriceValue = (stripeService.PRICING[tier].monthlyPrice / 100).toFixed(2); // Convert cents to dollars with 2 decimal places
         
-        // Extract Stripe IDs and ensure empty strings become NULL
-        let stripeCustomerId = null;
+        // Extract Stripe IDs - only include them if they have actual values
+        let stripeCustomerId: string | undefined = undefined;
         if (typeof session.customer === 'string' && session.customer) {
           stripeCustomerId = session.customer;
         } else if (typeof session.customer === 'object' && session.customer?.id) {
           stripeCustomerId = session.customer.id;
         }
         
-        let stripeSubscriptionId = null;
+        let stripeSubscriptionId: string | undefined = undefined;
         if (session.subscription) {
           if (typeof session.subscription === 'string' && session.subscription) {
             stripeSubscriptionId = session.subscription;
@@ -93,17 +93,25 @@ export const appRouter = router({
           }
         }
         
-        await db.createSubscription({
+        // Build subscription data object, only including Stripe IDs if they exist
+        const subscriptionData: any = {
           userId: input.userId,
           tier,
-          status: 'active',
+          status: 'active' as const,
           setupFeePaid: true,
-          stripeCustomerId,
-          stripeSubscriptionId,
           monthlyPrice: monthlyPriceValue,
           startDate: new Date(),
           renewalDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
-        });
+        };
+        
+        if (stripeCustomerId) {
+          subscriptionData.stripeCustomerId = stripeCustomerId;
+        }
+        if (stripeSubscriptionId) {
+          subscriptionData.stripeSubscriptionId = stripeSubscriptionId;
+        }
+        
+        await db.createSubscription(subscriptionData);
         
         // Create billing record
         const setupFee = stripeService.PRICING[tier].setupFee;

@@ -274,3 +274,9 @@
 - [x] Fix stripeSubscriptionId to convert empty strings to NULL
 - [x] Ensure database receives NULL instead of "" for optional fields
 - [x] Test subscription creation with proper NULL handling
+
+## Phase 34: Deep Investigation of Database Insert Error (CRITICAL)
+- [x] Check createSubscription function in server/db.ts
+- [x] Verify database schema matches insert parameters
+- [x] Identify why NULL values still appear as empty strings
+- [x] Fix the actual root cause: Drizzle ORM doesn't handle null properly, use undefined and conditionally include fields
