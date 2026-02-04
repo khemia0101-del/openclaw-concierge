@@ -29,7 +29,7 @@ export default function Home() {
       metaKeywords.setAttribute('name', 'keywords');
       document.head.appendChild(metaKeywords);
     }
-    metaKeywords.setAttribute('content', 'OpenClaw AI, AI assistant deployment, managed AI service, no-code AI setup, Integrate Fast');
+    metaKeywords.setAttribute('content', 'OpenClaw AI, clawdbot, moltbot, AI assistant deployment, managed AI service, no-code AI setup, Integrate Fast');
     
     // Open Graph tags for social sharing
     const ogTags = [

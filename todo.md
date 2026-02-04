@@ -155,3 +155,7 @@
 - [x] Shorten title from 84 to 52 characters using document.title
 - [x] Reduce description from 196 to 156 characters
 - [ ] Test SEO improvements
+
+## Phase 19: Add Legacy Brand Keywords
+- [x] Add "clawdbot" and "moltbot" to SEO keywords
+- [x] Test keyword count stays within 3-8 range (now 7 keywords total)
