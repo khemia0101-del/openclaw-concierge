@@ -262,3 +262,9 @@
 - [x] Convert cents to dollars (divide by 100)
 - [x] Ensure decimal type compatibility with database
 - [ ] Test subscription creation with proper price format
+
+## Phase 32: Fix monthlyPrice Decimal Formatting
+- [x] Identify that monthlyPrice needs .toFixed(2) for proper decimal format
+- [x] Update verifyPayment to use toFixed(2) instead of toString()
+- [x] Ensure database receives "49.00" format instead of "49" or ".49"
+- [ ] Test subscription creation with proper decimal formatting
