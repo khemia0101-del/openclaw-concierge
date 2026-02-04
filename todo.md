@@ -131,3 +131,21 @@
 - [ ] Implement canonical URLs
 - [ ] Add FAQ schema markup
 - [ ] Optimize page load speed
+
+## Phase 17: Affiliate Program UX Fixes
+- [ ] Create public-facing affiliate program landing page at `/affiliate-program`
+- [ ] Add commission calculator to public page (visible to all visitors)
+- [ ] Add program benefits and details to public page (30% lifetime commission, etc.)
+- [ ] Add clear "Join Now" CTA that requires login/signup
+- [ ] Update footer link to point to `/affiliate-program` instead of `/affiliate`
+- [ ] Add navigation link to affiliate program in header
+- [ ] Test complete affiliate signup flow from landing page
+
+## Update: Phase 17 Completed
+- [x] Create public-facing affiliate program landing page at `/affiliate-program`
+- [x] Add commission calculator to public page (visible to all visitors)
+- [x] Add program benefits and details to public page (30% lifetime commission, etc.)
+- [x] Add clear "Join Now" CTA that requires login/signup
+- [x] Update footer link to point to `/affiliate-program` instead of `/affiliate`
+- [x] Add navigation link to affiliate program in header
+- [ ] Test complete affiliate signup flow from landing page

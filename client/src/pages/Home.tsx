@@ -559,7 +559,7 @@ export default function Home() {
           <p className="mt-2">
             AI Implementation Experts | <a href="https://integratefast.com" className="text-secondary hover:underline">integratefast.com</a>
             {" | "}
-            <Link href="/affiliate" className="text-secondary hover:underline">Affiliate Program (Earn 30%)</Link>
+            <Link href="/affiliate-program" className="text-secondary hover:underline">Affiliate Program (Earn 30%)</Link>
           </p>
         </div>
       </footer>
