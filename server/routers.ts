@@ -80,6 +80,7 @@ export const appRouter = router({
           status: 'active',
           setupFeePaid: true,
           stripeCustomerId: typeof session.customer === 'string' ? session.customer : session.customer?.id || null,
+          stripeSubscriptionId: session.subscription ? (typeof session.subscription === 'string' ? session.subscription : session.subscription.id) : null,
           monthlyPrice: stripeService.PRICING[tier].monthlyPrice.toString(),
           startDate: new Date(),
           renewalDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days

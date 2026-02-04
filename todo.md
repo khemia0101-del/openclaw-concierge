@@ -249,3 +249,10 @@
 - [x] Fix crash cause (removed unstable dependencies from useEffect)
 - [ ] Test on dev server first
 - [ ] Publish and retest
+
+## Phase 30: Fix Database Schema Mismatch (CRITICAL)
+- [x] Check subscriptions table schema in drizzle/schema.ts
+- [x] Check verifyPayment mutation insert query
+- [x] Fix column mismatch (added missing stripeSubscriptionId)
+- [ ] Test subscription creation after payment
+- [ ] Verify dashboard displays subscription correctly
