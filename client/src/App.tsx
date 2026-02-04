@@ -7,6 +7,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import Onboarding from "./pages/Onboarding";
 import Dashboard from "./pages/Dashboard";
+import AffiliateDashboard from "./pages/AffiliateDashboard";
 
 function Router() {
   return (
@@ -14,6 +15,7 @@ function Router() {
       <Route path={"/"} component={Home} />
       <Route path={"/onboarding"} component={Onboarding} />
       <Route path={"/dashboard"} component={Dashboard} />
+      <Route path={"/affiliate"} component={AffiliateDashboard} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />

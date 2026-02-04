@@ -15,6 +15,13 @@
       "when": 1770139917891,
       "tag": "0001_yellow_titanium_man",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1770176558335,
+      "tag": "0002_melted_living_lightning",
+      "breakpoints": true
     }
   ]
 }

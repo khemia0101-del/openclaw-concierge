@@ -111,11 +111,7 @@ export type InsertUsageMetric = typeof usageMetrics.$inferInsert;
 /**
  * Relations for foreign keys
  */
-export const usersRelations = relations(users, ({ many }) => ({
-  subscriptions: many(subscriptions),
-  aiInstances: many(aiInstances),
-  billingRecords: many(billingRecords),
-}));
+// Removed - see usersRelationsUpdated at bottom of file
 
 export const subscriptionsRelations = relations(subscriptions, ({ one, many }) => ({
   user: one(users, {
@@ -154,4 +150,153 @@ export const usageMetricsRelations = relations(usageMetrics, ({ one }) => ({
     fields: [usageMetrics.instanceId],
     references: [aiInstances.id],
   }),
+}));
+
+/**
+ * Affiliates table - tracks affiliate partners and their referral codes
+ */
+export const affiliates = mysqlTable("affiliates", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique(), // One affiliate account per user
+  affiliateCode: varchar("affiliateCode", { length: 50 }).notNull().unique(),
+  status: mysqlEnum("status", ["active", "suspended", "pending"]).default("active").notNull(),
+  commissionRate: decimal("commissionRate", { precision: 5, scale: 2 }).default("30.00").notNull(), // 30% default
+  totalEarnings: decimal("totalEarnings", { precision: 10, scale: 2 }).default("0").notNull(),
+  pendingEarnings: decimal("pendingEarnings", { precision: 10, scale: 2 }).default("0").notNull(),
+  paidEarnings: decimal("paidEarnings", { precision: 10, scale: 2 }).default("0").notNull(),
+  paypalEmail: varchar("paypalEmail", { length: 320 }),
+  bankDetails: json("bankDetails"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Affiliate = typeof affiliates.$inferSelect;
+export type InsertAffiliate = typeof affiliates.$inferInsert;
+
+/**
+ * Referrals table - tracks referred users and their conversion status
+ */
+export const referrals = mysqlTable("referrals", {
+  id: int("id").autoincrement().primaryKey(),
+  affiliateId: int("affiliateId").notNull(),
+  referredUserId: int("referredUserId"), // Null until user signs up
+  referredEmail: varchar("referredEmail", { length: 320 }),
+  status: mysqlEnum("status", ["pending", "signed_up", "subscribed", "cancelled"]).default("pending").notNull(),
+  subscriptionId: int("subscriptionId"),
+  clickedAt: timestamp("clickedAt").defaultNow().notNull(),
+  signedUpAt: timestamp("signedUpAt"),
+  subscribedAt: timestamp("subscribedAt"),
+  ipAddress: varchar("ipAddress", { length: 45 }),
+  userAgent: text("userAgent"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Referral = typeof referrals.$inferSelect;
+export type InsertReferral = typeof referrals.$inferInsert;
+
+/**
+ * Commissions table - tracks commission payments for each subscription
+ */
+export const commissions = mysqlTable("commissions", {
+  id: int("id").autoincrement().primaryKey(),
+  affiliateId: int("affiliateId").notNull(),
+  referralId: int("referralId").notNull(),
+  subscriptionId: int("subscriptionId").notNull(),
+  billingRecordId: int("billingRecordId"), // Link to the payment that generated this commission
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  commissionRate: decimal("commissionRate", { precision: 5, scale: 2 }).notNull(),
+  status: mysqlEnum("status", ["pending", "approved", "paid", "cancelled"]).default("pending").notNull(),
+  type: mysqlEnum("type", ["setup_fee", "monthly_recurring"]).notNull(),
+  paidAt: timestamp("paidAt"),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Commission = typeof commissions.$inferSelect;
+export type InsertCommission = typeof commissions.$inferInsert;
+
+/**
+ * Affiliate Payouts table - tracks batch payments to affiliates
+ */
+export const affiliatePayouts = mysqlTable("affiliatePayouts", {
+  id: int("id").autoincrement().primaryKey(),
+  affiliateId: int("affiliateId").notNull(),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  method: mysqlEnum("method", ["paypal", "bank_transfer", "stripe"]).notNull(),
+  status: mysqlEnum("status", ["pending", "processing", "completed", "failed"]).default("pending").notNull(),
+  transactionId: varchar("transactionId", { length: 255 }),
+  commissionIds: json("commissionIds"), // Array of commission IDs included in this payout
+  notes: text("notes"),
+  processedAt: timestamp("processedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AffiliatePayout = typeof affiliatePayouts.$inferSelect;
+export type InsertAffiliatePayout = typeof affiliatePayouts.$inferInsert;
+
+/**
+ * Affiliate Relations
+ */
+export const affiliatesRelations = relations(affiliates, ({ one, many }) => ({
+  user: one(users, {
+    fields: [affiliates.userId],
+    references: [users.id],
+  }),
+  referrals: many(referrals),
+  commissions: many(commissions),
+  payouts: many(affiliatePayouts),
+}));
+
+export const referralsRelations = relations(referrals, ({ one, many }) => ({
+  affiliate: one(affiliates, {
+    fields: [referrals.affiliateId],
+    references: [affiliates.id],
+  }),
+  referredUser: one(users, {
+    fields: [referrals.referredUserId],
+    references: [users.id],
+  }),
+  subscription: one(subscriptions, {
+    fields: [referrals.subscriptionId],
+    references: [subscriptions.id],
+  }),
+  commissions: many(commissions),
+}));
+
+export const commissionsRelations = relations(commissions, ({ one }) => ({
+  affiliate: one(affiliates, {
+    fields: [commissions.affiliateId],
+    references: [affiliates.id],
+  }),
+  referral: one(referrals, {
+    fields: [commissions.referralId],
+    references: [referrals.id],
+  }),
+  subscription: one(subscriptions, {
+    fields: [commissions.subscriptionId],
+    references: [subscriptions.id],
+  }),
+  billingRecord: one(billingRecords, {
+    fields: [commissions.billingRecordId],
+    references: [billingRecords.id],
+  }),
+}));
+
+export const affiliatePayoutsRelations = relations(affiliatePayouts, ({ one }) => ({
+  affiliate: one(affiliates, {
+    fields: [affiliatePayouts.affiliateId],
+    references: [affiliates.id],
+  }),
+}));
+
+// Update users relations to include affiliates
+export const usersRelationsUpdated = relations(users, ({ one, many }) => ({
+  subscriptions: many(subscriptions),
+  aiInstances: many(aiInstances),
+  billingRecords: many(billingRecords),
+  affiliate: one(affiliates),
+  referrals: many(referrals),
 }));

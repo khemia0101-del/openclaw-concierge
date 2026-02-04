@@ -76,3 +76,58 @@
 - [x] Update dashboard branding
 - [x] Keep OpenClaw dark space aesthetic (green borders, red accents, stars)
 - [x] Test all pages for consistent branding
+
+## Phase 11: Competitive Research & Analysis
+- [ ] Research SimpleClaw.com marketing strategies
+- [ ] Identify other OpenClaw/AI assistant competitors
+- [ ] Analyze successful marketing trends and tactics
+- [ ] Document findings for implementation
+
+## Phase 12: Alex Hormozi Strategy Implementation
+- [ ] Review Alex Hormozi PDF strategies
+- [ ] Extract actionable tactics for OpenClaw Concierge
+- [ ] Implement value stacking techniques
+- [ ] Add urgency and scarcity elements
+- [ ] Implement guarantee/risk reversal
+- [ ] Add social proof and testimonials
+- [ ] Optimize CTA buttons and copy
+
+## Phase 13: Pricing Updates (50% OFF Sale)
+- [ ] Update setup fee: $500 → $250 (show as 50% off)
+- [ ] Update Starter plan: $99 → $49/month
+- [ ] Update Professional plan: $199 → $99/month
+- [ ] Update Business plan: $299 → $149/month
+- [ ] Add "50% OFF SALE" badges and messaging
+- [ ] Update Stripe product prices
+- [ ] Add countdown timer for urgency
+
+## Phase 14: Affiliate Program Backend
+- [ ] Create affiliates database table
+- [ ] Create referrals tracking table
+- [ ] Create commissions table
+- [ ] Build affiliate registration endpoint
+- [ ] Build referral tracking system (unique links)
+- [ ] Build commission calculation logic (30% lifetime)
+- [ ] Build payout management system
+- [ ] Create affiliate dashboard API endpoints
+
+## Phase 15: Affiliate Program Frontend
+- [ ] Create affiliate signup page
+- [ ] Create affiliate dashboard
+- [ ] Build referral link generator
+- [ ] Build commission calculator (30% LTV)
+- [ ] Create earnings/stats display
+- [ ] Add payout request functionality
+- [ ] Create affiliate marketing materials page
+
+## Phase 16: Comprehensive SEO Optimization
+- [ ] Add structured data (Schema.org markup)
+- [ ] Optimize all page titles and descriptions
+- [ ] Add Open Graph tags for social sharing
+- [ ] Create XML sitemap
+- [ ] Add robots.txt
+- [ ] Optimize images with alt tags
+- [ ] Add internal linking structure
+- [ ] Implement canonical URLs
+- [ ] Add FAQ schema markup
+- [ ] Optimize page load speed
