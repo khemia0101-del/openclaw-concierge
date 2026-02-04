@@ -219,3 +219,13 @@
 - [x] Add error handling for deployment failures (toast + state reset)
 - [ ] Manual test: Complete flow with Stripe test card
 - [ ] Verify instance appears in dashboard after deployment
+
+## Phase 27: Fix Critical JavaScript Error After Payment (URGENT)
+- [x] Check browser console logs for detailed error
+- [x] Check server logs for any backend errors
+- [x] Identify which component is causing the error (OnboardingConfigure missing useState import)
+- [x] Fix the root cause (added missing React import)
+- [ ] Test payment flow with real Stripe checkout
+- [ ] Verify configure page loads correctly
+- [ ] Verify deployment progress UI works
+- [ ] Verify dashboard redirect works
