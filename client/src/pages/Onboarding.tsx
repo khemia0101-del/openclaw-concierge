@@ -16,20 +16,20 @@ type Tier = "starter" | "pro" | "business";
 const PRICING_TIERS = {
   starter: {
     name: "Starter",
-    setupFee: 500,
-    monthly: 99,
+    setupFee: 250,
+    monthly: 49,
     features: ["Basic AI capabilities", "Email support", "1,000 tokens/month", "Telegram integration"],
   },
   pro: {
     name: "Pro",
-    setupFee: 750,
-    monthly: 199,
+    setupFee: 250,
+    monthly: 99,
     features: ["Advanced AI capabilities", "Priority support", "5,000 tokens/month", "Multi-channel integration", "Custom skills"],
   },
   business: {
     name: "Business",
-    setupFee: 1000,
-    monthly: 299,
+    setupFee: 250,
+    monthly: 149,
     features: ["Enterprise AI capabilities", "24/7 support", "Unlimited tokens", "All integrations", "Custom development", "Dedicated account manager"],
   },
 };

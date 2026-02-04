@@ -12,19 +12,19 @@ export interface CreateCheckoutSessionParams {
   cancelUrl: string;
 }
 
-// Pricing configuration (in cents)
+// Pricing configuration (in cents) - 50% OFF SALE PRICES
 export const PRICING = {
   starter: {
-    setupFee: 50000, // $500
-    monthlyPrice: 9900, // $99
+    setupFee: 25000, // $250 (was $500)
+    monthlyPrice: 4900, // $49 (was $99)
   },
   pro: {
-    setupFee: 75000, // $750
-    monthlyPrice: 19900, // $199
+    setupFee: 25000, // $250 (was $500)
+    monthlyPrice: 9900, // $99 (was $199)
   },
   business: {
-    setupFee: 100000, // $1000
-    monthlyPrice: 29900, // $299
+    setupFee: 25000, // $250 (was $500)
+    monthlyPrice: 14900, // $149 (was $299)
   },
 };
 

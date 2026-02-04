@@ -159,3 +159,9 @@
 ## Phase 19: Add Legacy Brand Keywords
 - [x] Add "clawdbot" and "moltbot" to SEO keywords
 - [x] Test keyword count stays within 3-8 range (now 7 keywords total)
+
+## Phase 20: Fix Onboarding & Stripe Pricing
+- [x] Update onboarding page pricing display to show sale prices
+- [x] Update Stripe product definitions with new prices
+- [ ] Test checkout flow with new pricing
+- [ ] Verify Stripe webhook handles new prices correctly
