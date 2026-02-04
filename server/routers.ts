@@ -103,19 +103,24 @@ export const appRouter = router({
           status: 'completed',
         });
         
-        return { success: true };
+        // Get email from session metadata
+        const email = session.metadata?.customerEmail || session.customer_email || '';
+        
+        return { success: true, email, tier };
       }),
     
     // Deploy AI instance
-    deployInstance: protectedProcedure
+    deployInstance: publicProcedure
       .input(z.object({
+        userId: z.number(),
+        userEmail: z.string().email(),
         aiRole: z.string(),
         telegramBotToken: z.string().optional(),
         communicationChannels: z.array(z.string()),
         connectedServices: z.array(z.string()),
       }))
-      .mutation(async ({ ctx, input }) => {
-        const userId = ctx.user.id;
+      .mutation(async ({ input }) => {
+        const userId = input.userId;
         const subscription = await db.getSubscriptionByUserId(userId);
         
         if (!subscription) {
@@ -139,7 +144,7 @@ export const appRouter = router({
         try {
           const app = await digitaloceanService.createOpenClawApp({
             userId,
-            userEmail: ctx.user.email || '',
+            userEmail: input.userEmail,
             aiRole: input.aiRole,
             tier: subscription.tier,
             telegramBotToken: input.telegramBotToken,

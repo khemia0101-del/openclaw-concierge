@@ -194,3 +194,16 @@
 - [x] Remove tier parameter from verifyPayment input (gets it from Stripe)
 - [ ] Update lead status to "paid" when deployment succeeds
 - [ ] Test full flow: payment → configure → deploy → success
+
+## Phase 25: Production Readiness Audit
+- [x] Review deployment logic for AI instance provisioning
+- [x] Change deployInstance from protected to public procedure
+- [x] Fix authentication flow to work with temporary user IDs
+- [x] Simplify onboarding to 2 steps (email+plan, payment)
+- [x] Move AI configuration to post-payment page
+- [x] Update verifyPayment to return email and tier
+- [x] Pass userId and userEmail to deployInstance
+- [ ] Test DigitalOcean API integration for actual deployment
+- [ ] Verify dashboard shows correct subscription and instance data
+- [ ] Test complete flow end-to-end with real payment
+- [ ] Document any limitations or manual steps required

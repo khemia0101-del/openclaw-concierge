@@ -16,6 +16,7 @@ export default function OnboardingConfigure() {
   const [verifying, setVerifying] = useState(true);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [userId, setUserId] = useState<number | null>(null);
+  const [userEmail, setUserEmail] = useState<string>("");
   
   // Form state
   const [aiRole, setAiRole] = useState("");
@@ -45,12 +46,13 @@ export default function OnboardingConfigure() {
         // Use temporary user ID from session (same as onboarding)
         const tempUserId = Date.now();
         
-        await verifyPayment.mutateAsync({
+        const result = await verifyPayment.mutateAsync({
           sessionId: sid,
           userId: tempUserId,
         });
         
         setUserId(tempUserId);
+        setUserEmail(result.email);
         setVerifying(false);
       } catch (error: any) {
         toast.error("Failed to verify payment: " + error.message);
@@ -69,7 +71,14 @@ export default function OnboardingConfigure() {
     
     setLoading(true);
     try {
+      if (!userId || !userEmail) {
+        toast.error("Session expired. Please start over.");
+        return;
+      }
+      
       await deployInstance.mutateAsync({
+        userId,
+        userEmail,
         aiRole,
         telegramBotToken: telegramBotToken || undefined,
         communicationChannels,

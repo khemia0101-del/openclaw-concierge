@@ -42,21 +42,12 @@ export default function Onboarding() {
   // Form state
   const [email, setEmail] = useState("");
   const [selectedTier, setSelectedTier] = useState<Tier>("starter");
-  const [aiRole, setAiRole] = useState("");
-  const [telegramBotToken, setTelegramBotToken] = useState("");
-  const [communicationChannels, setCommunicationChannels] = useState<string[]>(["telegram"]);
-  const [connectedServices, setConnectedServices] = useState<string[]>([]);
   
   const createCheckout = trpc.onboarding.createCheckout.useMutation();
-  const deployInstance = trpc.onboarding.deployInstance.useMutation();
 
   const handleNext = () => {
     if (step === 1 && !email) {
       toast.error("Please enter your email");
-      return;
-    }
-    if (step === 3 && !aiRole) {
-      toast.error("Please describe your AI employee's role");
       return;
     }
     setStep(step + 1);
@@ -90,23 +81,7 @@ export default function Onboarding() {
     }
   };
 
-  const handleDeploy = async () => {
-    setLoading(true);
-    try {
-      await deployInstance.mutateAsync({
-        aiRole,
-        telegramBotToken: telegramBotToken || undefined,
-        communicationChannels,
-        connectedServices,
-      });
-      
-      toast.success("AI Employee deployed successfully!");
-      navigate("/dashboard");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to deploy AI instance");
-      setLoading(false);
-    }
-  };
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
@@ -114,7 +89,7 @@ export default function Onboarding() {
         {/* Progress indicator */}
         <div className="mb-8">
           <div className="flex items-center justify-between">
-            {[1, 2, 3, 4].map((s) => (
+            {[1, 2].map((s) => (
               <div key={s} className="flex items-center">
                 <div
                   className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
@@ -127,7 +102,7 @@ export default function Onboarding() {
                 >
                   {s < step ? <Check className="w-5 h-5" /> : s}
                 </div>
-                {s < 4 && (
+                {s < 2 && (
                   <div
                     className={`h-1 w-20 mx-2 ${
                       s < step ? "bg-green-500" : "bg-gray-300"
@@ -139,9 +114,7 @@ export default function Onboarding() {
           </div>
           <div className="flex justify-between mt-2 text-sm">
             <span className={step === 1 ? "font-semibold" : ""}>Email</span>
-            <span className={step === 2 ? "font-semibold" : ""}>Plan</span>
-            <span className={step === 3 ? "font-semibold" : ""}>Configure</span>
-            <span className={step === 4 ? "font-semibold" : ""}>Deploy</span>
+            <span className={step === 2 ? "font-semibold" : ""}>Plan & Payment</span>
           </div>
         </div>
 
@@ -150,14 +123,10 @@ export default function Onboarding() {
             <CardTitle className="text-2xl">
               {step === 1 && "Welcome to OpenClaw Concierge"}
               {step === 2 && "Choose Your Plan"}
-              {step === 3 && "Configure Your AI Employee"}
-              {step === 4 && "Review & Deploy"}
             </CardTitle>
             <CardDescription>
               {step === 1 && "Let's get you set up with your personal AI employee"}
               {step === 2 && "Select the plan that best fits your needs"}
-              {step === 3 && "Tell us what you want your AI to do"}
-              {step === 4 && "You're all set! Click deploy to launch your AI employee"}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -224,118 +193,7 @@ export default function Onboarding() {
               </div>
             )}
 
-            {/* Step 3: Configuration */}
-            {step === 3 && (
-              <div className="space-y-6">
-                <div>
-                  <Label htmlFor="aiRole">What should your AI employee do?</Label>
-                  <Textarea
-                    id="aiRole"
-                    placeholder="e.g., Manage my inbox, schedule meetings, research market trends..."
-                    value={aiRole}
-                    onChange={(e) => setAiRole(e.target.value)}
-                    rows={4}
-                    className="mt-1"
-                  />
-                </div>
-                
-                <div>
-                  <Label>Communication Channels</Label>
-                  <div className="mt-2 space-y-2">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="telegram"
-                        checked={communicationChannels.includes("telegram")}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setCommunicationChannels([...communicationChannels, "telegram"]);
-                          } else {
-                            setCommunicationChannels(communicationChannels.filter(c => c !== "telegram"));
-                          }
-                        }}
-                      />
-                      <Label htmlFor="telegram" className="cursor-pointer">Telegram</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="email"
-                        checked={communicationChannels.includes("email")}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setCommunicationChannels([...communicationChannels, "email"]);
-                          } else {
-                            setCommunicationChannels(communicationChannels.filter(c => c !== "email"));
-                          }
-                        }}
-                      />
-                      <Label htmlFor="email" className="cursor-pointer">Email</Label>
-                    </div>
-                  </div>
-                </div>
 
-                {communicationChannels.includes("telegram") && (
-                  <div>
-                    <Label htmlFor="telegram-token">Telegram Bot Token (optional)</Label>
-                    <Input
-                      id="telegram-token"
-                      placeholder="Leave blank to create one automatically"
-                      value={telegramBotToken}
-                      onChange={(e) => setTelegramBotToken(e.target.value)}
-                      className="mt-1"
-                    />
-                  </div>
-                )}
-
-                <div className="flex gap-2">
-                  <Button variant="outline" onClick={handleBack}>
-                    <ArrowLeft className="mr-2 w-4 h-4" /> Back
-                  </Button>
-                  <Button onClick={handleNext} className="flex-1">
-                    Continue <ArrowRight className="ml-2 w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* Step 4: Review & Deploy */}
-            {step === 4 && (
-              <div className="space-y-6">
-                <div className="bg-gray-50 p-4 rounded-lg space-y-3">
-                  <div>
-                    <p className="text-sm font-semibold text-gray-600">Email</p>
-                    <p>{email}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-600">Plan</p>
-                    <p>{PRICING_TIERS[selectedTier].name}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-600">AI Role</p>
-                    <p>{aiRole}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-600">Communication</p>
-                    <p>{communicationChannels.join(", ")}</p>
-                  </div>
-                </div>
-
-                <div className="flex gap-2">
-                  <Button variant="outline" onClick={handleBack}>
-                    <ArrowLeft className="mr-2 w-4 h-4" /> Back
-                  </Button>
-                  <Button onClick={handleDeploy} disabled={loading} className="flex-1">
-                    {loading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                        Deploying...
-                      </>
-                    ) : (
-                      "Deploy My AI Employee"
-                    )}
-                  </Button>
-                </div>
-              </div>
-            )}
           </CardContent>
         </Card>
       </div>
