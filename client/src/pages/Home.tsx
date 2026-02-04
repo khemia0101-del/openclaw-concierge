@@ -11,7 +11,7 @@ export default function Home() {
 
   // SEO: Set page title and meta tags
   useEffect(() => {
-    document.title = "OpenClaw AI Deployment in 60 Seconds | Integrate Fast - No Technical Skills Required";
+    document.title = "Deploy OpenClaw AI in 60 Seconds | Integrate Fast";
     
     // Update or create meta description
     let metaDescription = document.querySelector('meta[name="description"]');
@@ -20,7 +20,7 @@ export default function Home() {
       metaDescription.setAttribute('name', 'description');
       document.head.appendChild(metaDescription);
     }
-    metaDescription.setAttribute('content', 'Deploy your personal OpenClaw AI assistant in under 60 seconds. No coding, no Docker, no API keys. Fully managed service with 24/7 support. 50% OFF limited time offer. 30-day money-back guarantee.');
+    metaDescription.setAttribute('content', 'Deploy your OpenClaw AI assistant in 60 seconds. No coding required. Fully managed service with 24/7 support. 50% OFF sale. 30-day guarantee.');
     
     // Add keywords meta tag
     let metaKeywords = document.querySelector('meta[name="keywords"]');
@@ -29,7 +29,7 @@ export default function Home() {
       metaKeywords.setAttribute('name', 'keywords');
       document.head.appendChild(metaKeywords);
     }
-    metaKeywords.setAttribute('content', 'OpenClaw AI, AI assistant deployment, personal AI employee, managed AI service, no-code AI setup, OpenClaw hosting, AI automation, business AI assistant, Telegram AI bot, WhatsApp AI, Discord AI, automated AI deployment, Integrate Fast, OpenClaw concierge');
+    metaKeywords.setAttribute('content', 'OpenClaw AI, AI assistant deployment, managed AI service, no-code AI setup, Integrate Fast');
     
     // Open Graph tags for social sharing
     const ogTags = [
