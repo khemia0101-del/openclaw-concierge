@@ -9,11 +9,13 @@ import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { Loader2, Check, Sparkles } from "lucide-react";
+import DeploymentProgress from "@/components/DeploymentProgress";
 
 export default function OnboardingConfigure() {
   const [, navigate] = useLocation();
   const [loading, setLoading] = useState(false);
   const [verifying, setVerifying] = useState(true);
+  const [deploying, setDeploying] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [userId, setUserId] = useState<number | null>(null);
   const [userEmail, setUserEmail] = useState<string>("");
@@ -69,13 +71,16 @@ export default function OnboardingConfigure() {
       return;
     }
     
-    setLoading(true);
+    if (!userId || !userEmail) {
+      toast.error("Session expired. Please start over.");
+      return;
+    }
+    
+    // Show deployment progress UI
+    setDeploying(true);
+    
+    // Start deployment in background
     try {
-      if (!userId || !userEmail) {
-        toast.error("Session expired. Please start over.");
-        return;
-      }
-      
       await deployInstance.mutateAsync({
         userId,
         userEmail,
@@ -84,12 +89,10 @@ export default function OnboardingConfigure() {
         communicationChannels,
         connectedServices,
       });
-      
-      toast.success("AI Employee deployed successfully!");
-      navigate("/dashboard");
+      // Success handled by DeploymentProgress onComplete
     } catch (error: any) {
       toast.error(error.message || "Failed to deploy AI instance");
-      setLoading(false);
+      setDeploying(false);
     }
   };
 
@@ -119,6 +122,21 @@ export default function OnboardingConfigure() {
           </CardContent>
         </Card>
       </div>
+    );
+  }
+
+  if (deploying) {
+    return (
+      <DeploymentProgress
+        onComplete={() => {
+          toast.success("AI Employee deployed successfully!");
+          navigate("/dashboard");
+        }}
+        onError={(error) => {
+          toast.error(error);
+          setDeploying(false);
+        }}
+      />
     );
   }
 
