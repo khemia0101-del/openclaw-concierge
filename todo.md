@@ -186,3 +186,11 @@
 - [x] Prevent duplicate email entries (onDuplicateKeyUpdate)
 - [x] Track conversion status (lead → checkout_started → paid)
 - [x] Update lead status with Stripe session ID
+
+## Phase 24: Fix "No Active Subscription" Error (CRITICAL BUG)
+- [x] Investigate why subscription isn't created after payment
+- [x] Fix verifyPayment to extract tier from Stripe session metadata
+- [x] Update OnboardingConfigure to call verifyPayment before allowing deployment
+- [x] Remove tier parameter from verifyPayment input (gets it from Stripe)
+- [ ] Update lead status to "paid" when deployment succeeds
+- [ ] Test full flow: payment → configure → deploy → success

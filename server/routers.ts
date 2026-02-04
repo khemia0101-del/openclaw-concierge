@@ -59,7 +59,6 @@ export const appRouter = router({
       .input(z.object({
         sessionId: z.string(),
         userId: z.number(),
-        tier: z.enum(['starter', 'pro', 'business']),
       }))
       .mutation(async ({ input }) => {
         const session = await stripeService.getCheckoutSession(input.sessionId);
@@ -68,21 +67,27 @@ export const appRouter = router({
           throw new Error('Payment not completed');
         }
         
+        // Get tier from session metadata
+        const tier = session.metadata?.tier as 'starter' | 'pro' | 'business';
+        if (!tier) {
+          throw new Error('Tier information missing from payment session');
+        }
+        
         // Create subscription record
         await db.createSubscription({
           userId: input.userId,
-          tier: input.tier,
+          tier,
           status: 'active',
           setupFeePaid: true,
           stripeCustomerId: typeof session.customer === 'string' ? session.customer : session.customer?.id || null,
-          monthlyPrice: stripeService.PRICING[input.tier].monthlyPrice.toString(),
+          monthlyPrice: stripeService.PRICING[tier].monthlyPrice.toString(),
           startDate: new Date(),
           renewalDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
         });
         
         // Create billing record
-        const setupFee = stripeService.PRICING[input.tier].setupFee;
-        const monthlyFee = stripeService.PRICING[input.tier].monthlyPrice;
+        const setupFee = stripeService.PRICING[tier].setupFee;
+        const monthlyFee = stripeService.PRICING[tier].monthlyPrice;
         await db.createBillingRecord({
           userId: input.userId,
           type: 'setup_fee',

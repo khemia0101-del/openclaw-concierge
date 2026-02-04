@@ -15,6 +15,7 @@ export default function OnboardingConfigure() {
   const [loading, setLoading] = useState(false);
   const [verifying, setVerifying] = useState(true);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [userId, setUserId] = useState<number | null>(null);
   
   // Form state
   const [aiRole, setAiRole] = useState("");
@@ -23,6 +24,7 @@ export default function OnboardingConfigure() {
   const [connectedServices, setConnectedServices] = useState<string[]>([]);
   
   const deployInstance = trpc.onboarding.deployInstance.useMutation();
+  const verifyPayment = trpc.onboarding.verifyPayment.useMutation();
 
   useEffect(() => {
     // Get session_id from URL
@@ -36,8 +38,28 @@ export default function OnboardingConfigure() {
     }
     
     setSessionId(sid);
-    setVerifying(false);
-  }, [navigate]);
+    
+    // Verify payment and create subscription
+    const verifyAndSetup = async () => {
+      try {
+        // Use temporary user ID from session (same as onboarding)
+        const tempUserId = Date.now();
+        
+        await verifyPayment.mutateAsync({
+          sessionId: sid,
+          userId: tempUserId,
+        });
+        
+        setUserId(tempUserId);
+        setVerifying(false);
+      } catch (error: any) {
+        toast.error("Failed to verify payment: " + error.message);
+        setTimeout(() => navigate("/"), 2000);
+      }
+    };
+    
+    verifyAndSetup();
+  }, [navigate, verifyPayment]);
 
   const handleDeploy = async () => {
     if (!aiRole) {
