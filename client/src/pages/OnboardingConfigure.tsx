@@ -63,7 +63,8 @@ export default function OnboardingConfigure() {
     };
     
     verifyAndSetup();
-  }, [navigate, verifyPayment]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run once on mount
 
   const handleDeploy = async () => {
     if (!aiRole) {

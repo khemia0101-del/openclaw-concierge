@@ -229,3 +229,23 @@
 - [ ] Verify configure page loads correctly
 - [ ] Verify deployment progress UI works
 - [ ] Verify dashboard redirect works
+
+## Phase 28: Production Monitoring & Error Handling
+- [ ] Create React Error Boundary component
+- [ ] Wrap app in Error Boundary
+- [ ] Add user-friendly error fallback UI
+- [ ] Install Sentry SDK
+- [ ] Configure Sentry with DSN
+- [ ] Add Sentry error tracking to app
+- [ ] Create payment testing guide
+- [ ] Test error boundary with intentional error
+- [ ] Verify Sentry captures errors
+
+## Phase 29: Fix Safari Crash After Payment (CRITICAL)
+- [x] Verify latest checkpoint (abd9c911) is published
+- [x] Check OnboardingConfigure for infinite render loops (FOUND IT!)
+- [x] Review useEffect dependencies (verifyPayment causing infinite loop)
+- [x] Check for setState in render phase (clean)
+- [x] Fix crash cause (removed unstable dependencies from useEffect)
+- [ ] Test on dev server first
+- [ ] Publish and retest
