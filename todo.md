@@ -165,3 +165,11 @@
 - [x] Update Stripe product definitions with new prices
 - [ ] Test checkout flow with new pricing
 - [ ] Verify Stripe webhook handles new prices correctly
+
+## Phase 21: Complete Onboarding Flow (CRITICAL BUG)
+- [x] Create /onboarding/configure page for post-payment setup
+- [x] Verify Stripe payment session on configure page
+- [x] Collect AI configuration (role, channels, tokens)
+- [x] Wire up deployment logic to existing deployInstance mutation
+- [x] Add route to App.tsx
+- [ ] Test full flow: payment → configure → deploy → success

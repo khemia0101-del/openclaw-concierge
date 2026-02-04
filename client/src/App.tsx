@@ -6,6 +6,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import Onboarding from "./pages/Onboarding";
+import OnboardingConfigure from "./pages/OnboardingConfigure";
 import Dashboard from "./pages/Dashboard";
 import AffiliateDashboard from "./pages/AffiliateDashboard";
 import AffiliateProgram from "./pages/AffiliateProgram";
@@ -15,6 +16,7 @@ function Router() {
     <Switch>
       <Route path={"/"} component={Home} />
       <Route path={"/onboarding"} component={Onboarding} />
+      <Route path={"/onboarding/configure"} component={OnboardingConfigure} />
       <Route path={"/dashboard"} component={Dashboard} />
       <Route path={"/affiliate-program"} component={AffiliateProgram} />
       <Route path={"/affiliate"} component={AffiliateDashboard} />
