@@ -268,3 +268,9 @@
 - [x] Update verifyPayment to use toFixed(2) instead of toString()
 - [x] Ensure database receives "49.00" format instead of "49" or ".49"
 - [ ] Test subscription creation with proper decimal formatting
+
+## Phase 33: Fix NULL Handling for Stripe IDs (CRITICAL)
+- [x] Fix stripeCustomerId to convert empty strings to NULL
+- [x] Fix stripeSubscriptionId to convert empty strings to NULL
+- [x] Ensure database receives NULL instead of "" for optional fields
+- [x] Test subscription creation with proper NULL handling

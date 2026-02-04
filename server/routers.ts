@@ -75,13 +75,31 @@ export const appRouter = router({
         
         // Create subscription record
         const monthlyPriceValue = (stripeService.PRICING[tier].monthlyPrice / 100).toFixed(2); // Convert cents to dollars with 2 decimal places
+        
+        // Extract Stripe IDs and ensure empty strings become NULL
+        let stripeCustomerId = null;
+        if (typeof session.customer === 'string' && session.customer) {
+          stripeCustomerId = session.customer;
+        } else if (typeof session.customer === 'object' && session.customer?.id) {
+          stripeCustomerId = session.customer.id;
+        }
+        
+        let stripeSubscriptionId = null;
+        if (session.subscription) {
+          if (typeof session.subscription === 'string' && session.subscription) {
+            stripeSubscriptionId = session.subscription;
+          } else if (typeof session.subscription === 'object' && session.subscription.id) {
+            stripeSubscriptionId = session.subscription.id;
+          }
+        }
+        
         await db.createSubscription({
           userId: input.userId,
           tier,
           status: 'active',
           setupFeePaid: true,
-          stripeCustomerId: typeof session.customer === 'string' ? session.customer : session.customer?.id || null,
-          stripeSubscriptionId: session.subscription ? (typeof session.subscription === 'string' ? session.subscription : session.subscription.id) : null,
+          stripeCustomerId,
+          stripeSubscriptionId,
           monthlyPrice: monthlyPriceValue,
           startDate: new Date(),
           renewalDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
