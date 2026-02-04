@@ -74,6 +74,7 @@ export const appRouter = router({
         }
         
         // Create subscription record
+        const monthlyPriceValue = stripeService.PRICING[tier].monthlyPrice / 100; // Convert cents to dollars
         await db.createSubscription({
           userId: input.userId,
           tier,
@@ -81,7 +82,7 @@ export const appRouter = router({
           setupFeePaid: true,
           stripeCustomerId: typeof session.customer === 'string' ? session.customer : session.customer?.id || null,
           stripeSubscriptionId: session.subscription ? (typeof session.subscription === 'string' ? session.subscription : session.subscription.id) : null,
-          monthlyPrice: stripeService.PRICING[tier].monthlyPrice.toString(),
+          monthlyPrice: monthlyPriceValue.toString(),
           startDate: new Date(),
           renewalDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
         });

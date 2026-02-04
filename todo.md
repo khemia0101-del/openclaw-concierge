@@ -256,3 +256,9 @@
 - [x] Fix column mismatch (added missing stripeSubscriptionId)
 - [ ] Test subscription creation after payment
 - [ ] Verify dashboard displays subscription correctly
+
+## Phase 31: Fix monthlyPrice Type Conversion
+- [x] Fix monthlyPrice being passed as string instead of number
+- [x] Convert cents to dollars (divide by 100)
+- [x] Ensure decimal type compatibility with database
+- [ ] Test subscription creation with proper price format
