@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, sql as drizzleSql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { 
   InsertUser, 
@@ -110,6 +110,55 @@ export async function createSubscription(data: Partial<InsertSubscription> & { u
   console.log('[createSubscription] Data values:', Object.values(data));
   
   const result = await db.insert(subscriptions).values(data as any);
+  return result;
+}
+
+export async function createSubscriptionRaw(data: {
+  userId: number;
+  tier: 'starter' | 'pro' | 'business';
+  status: 'active' | 'paused' | 'cancelled' | 'pending';
+  setupFeePaid: boolean;
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
+  monthlyPrice: string;
+  startDate: Date;
+  renewalDate: Date;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error('Database not available');
+  
+  // Use raw SQL to bypass Drizzle ORM issues
+  console.log('[createSubscriptionRaw] Inserting with values:', {
+    userId: data.userId,
+    tier: data.tier,
+    status: data.status,
+    setupFeePaid: data.setupFeePaid,
+    stripeCustomerId: data.stripeCustomerId,
+    stripeSubscriptionId: data.stripeSubscriptionId,
+    monthlyPrice: data.monthlyPrice,
+    startDate: data.startDate,
+    renewalDate: data.renewalDate,
+  });
+  
+  const result = await db.execute(drizzleSql`
+    INSERT INTO subscriptions (
+      userId, tier, status, setupFeePaid, 
+      stripeCustomerId, stripeSubscriptionId, monthlyPrice, 
+      startDate, renewalDate
+    ) VALUES (
+      ${data.userId}, 
+      ${data.tier}, 
+      ${data.status}, 
+      ${data.setupFeePaid ? 1 : 0},
+      ${data.stripeCustomerId},
+      ${data.stripeSubscriptionId},
+      ${data.monthlyPrice},
+      ${data.startDate},
+      ${data.renewalDate}
+    )
+  `);
+  
+  console.log('[createSubscriptionRaw] Insert successful');
   return result;
 }
 

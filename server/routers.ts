@@ -111,8 +111,19 @@ export const appRouter = router({
           subscriptionData.stripeSubscriptionId = stripeSubscriptionId;
         }
         
-        console.log('[verifyPayment] Subscription data being inserted:', JSON.stringify(subscriptionData, null, 2));
-        await db.createSubscription(subscriptionData);
+        // Use raw SQL to bypass Drizzle ORM issues
+        console.log('[verifyPayment] Creating subscription with raw SQL');
+        await db.createSubscriptionRaw({
+          userId: input.userId,
+          tier,
+          status: 'active',
+          setupFeePaid: true,
+          stripeCustomerId: stripeCustomerId || null,
+          stripeSubscriptionId: stripeSubscriptionId || null,
+          monthlyPrice: monthlyPriceValue,
+          startDate: new Date(),
+          renewalDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        });
         
         // Create billing record
         const setupFee = stripeService.PRICING[tier].setupFee;

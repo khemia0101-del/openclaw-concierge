@@ -288,3 +288,9 @@
 - [ ] Run db:push to sync schema if needed
 - [ ] Verify insert statement matches actual database structure
 - [ ] Test subscription creation with correct column mapping
+
+## Phase 36: Bypass Drizzle ORM with Raw SQL (NUCLEAR OPTION)
+- [x] Create raw SQL insert function for subscriptions (createSubscriptionRaw)
+- [x] Replace db.createSubscription with raw SQL execution
+- [x] Test subscription creation with raw SQL (all tests passing)
+- [ ] Verify database records are created correctly in production
