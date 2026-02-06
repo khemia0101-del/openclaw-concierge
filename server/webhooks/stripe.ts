@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
-import { constructWebhookEvent } from '../services/stripe';
+import { constructWebhookEvent, PRICING } from '../services/stripe';
+import * as db from '../db';
 
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
 
@@ -21,11 +22,8 @@ export async function handleStripeWebhook(req: Request, res: Response) {
 
   // Handle test events
   if (event.id.startsWith('evt_test_')) {
-    console.log('[Stripe Webhook] Test event detected, returning verification response');
     return res.json({ verified: true });
   }
-
-  console.log(`[Stripe Webhook] Received event: ${event.type}`);
 
   try {
     switch (event.type) {
@@ -34,21 +32,57 @@ export async function handleStripeWebhook(req: Request, res: Response) {
         const userId = parseInt(session.metadata?.userId || session.client_reference_id || '0');
         const tier = session.metadata?.tier as 'starter' | 'pro' | 'business';
 
-        if (!userId || !tier) {
-          console.error('[Stripe Webhook] Missing userId or tier in metadata');
+        if (!userId || !tier || userId > 2147483647) {
+          console.error('[Stripe Webhook] Missing or invalid userId/tier in metadata');
           break;
         }
 
-        console.log(`[Stripe Webhook] Payment completed for user ${userId}, tier ${tier}`);
+        // Idempotent: only create subscription if one doesn't already exist for this user
+        const existing = await db.getSubscriptionByUserId(userId);
+        if (!existing) {
+          const monthlyPriceValue = (PRICING[tier].monthlyPrice / 100).toFixed(2);
 
-        // This is handled in the frontend after redirect, but we can also process here
-        // for redundancy and to handle edge cases
-        break;
-      }
+          let stripeCustomerId: string | null = null;
+          if (typeof session.customer === 'string') stripeCustomerId = session.customer;
+          else if (session.customer?.id) stripeCustomerId = session.customer.id;
 
-      case 'payment_intent.succeeded': {
-        const paymentIntent = event.data.object as any;
-        console.log(`[Stripe Webhook] Payment intent succeeded: ${paymentIntent.id}`);
+          let stripeSubscriptionId: string | null = null;
+          if (typeof session.subscription === 'string') stripeSubscriptionId = session.subscription;
+          else if (session.subscription?.id) stripeSubscriptionId = session.subscription.id;
+
+          await db.createSubscriptionRaw({
+            userId,
+            tier,
+            status: 'active',
+            setupFeePaid: true,
+            stripeCustomerId,
+            stripeSubscriptionId,
+            monthlyPrice: monthlyPriceValue,
+            startDate: new Date(),
+            renewalDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          });
+
+          await db.createBillingRecord({
+            userId,
+            type: 'setup_fee',
+            amount: (PRICING[tier].setupFee / 100).toFixed(2),
+            status: 'completed',
+            stripeChargeId: session.payment_intent as string,
+          });
+
+          await db.createBillingRecord({
+            userId,
+            type: 'monthly_subscription',
+            amount: monthlyPriceValue,
+            status: 'completed',
+          });
+
+          // Update lead status
+          const email = session.metadata?.customerEmail || session.customer_email || '';
+          if (email) {
+            await db.updateLeadStatus(email, 'paid', session.id, userId);
+          }
+        }
         break;
       }
 
@@ -58,14 +92,8 @@ export async function handleStripeWebhook(req: Request, res: Response) {
         break;
       }
 
-      case 'customer.created': {
-        const customer = event.data.object as any;
-        console.log(`[Stripe Webhook] Customer created: ${customer.id}`);
-        break;
-      }
-
       default:
-        console.log(`[Stripe Webhook] Unhandled event type: ${event.type}`);
+        break;
     }
 
     res.json({ received: true });

@@ -78,55 +78,56 @@ export const appRouter = router({
           throw new Error('User ID missing or invalid in payment session');
         }
 
-        // Create subscription record
-        const monthlyPriceValue = (stripeService.PRICING[tier].monthlyPrice / 100).toFixed(2); // Convert cents to dollars with 2 decimal places
+        // Idempotent: skip if subscription already created (e.g. by webhook)
+        const existing = await db.getSubscriptionByUserId(userId);
+        if (!existing) {
+          const monthlyPriceValue = (stripeService.PRICING[tier].monthlyPrice / 100).toFixed(2);
 
-        // Extract Stripe IDs - only include them if they have actual values
-        let stripeCustomerId: string | undefined = undefined;
-        if (typeof session.customer === 'string' && session.customer) {
-          stripeCustomerId = session.customer;
-        } else if (typeof session.customer === 'object' && session.customer?.id) {
-          stripeCustomerId = session.customer.id;
-        }
-
-        let stripeSubscriptionId: string | undefined = undefined;
-        if (session.subscription) {
-          if (typeof session.subscription === 'string' && session.subscription) {
-            stripeSubscriptionId = session.subscription;
-          } else if (typeof session.subscription === 'object' && session.subscription.id) {
-            stripeSubscriptionId = session.subscription.id;
+          let stripeCustomerId: string | undefined = undefined;
+          if (typeof session.customer === 'string' && session.customer) {
+            stripeCustomerId = session.customer;
+          } else if (typeof session.customer === 'object' && session.customer?.id) {
+            stripeCustomerId = session.customer.id;
           }
+
+          let stripeSubscriptionId: string | undefined = undefined;
+          if (session.subscription) {
+            if (typeof session.subscription === 'string' && session.subscription) {
+              stripeSubscriptionId = session.subscription;
+            } else if (typeof session.subscription === 'object' && session.subscription.id) {
+              stripeSubscriptionId = session.subscription.id;
+            }
+          }
+
+          await db.createSubscriptionRaw({
+            userId,
+            tier,
+            status: 'active',
+            setupFeePaid: true,
+            stripeCustomerId: stripeCustomerId || null,
+            stripeSubscriptionId: stripeSubscriptionId || null,
+            monthlyPrice: monthlyPriceValue,
+            startDate: new Date(),
+            renewalDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          });
+
+          const setupFee = stripeService.PRICING[tier].setupFee;
+          const monthlyFee = stripeService.PRICING[tier].monthlyPrice;
+          await db.createBillingRecord({
+            userId,
+            type: 'setup_fee',
+            amount: (setupFee / 100).toFixed(2),
+            status: 'completed',
+            stripeChargeId: session.payment_intent as string,
+          });
+
+          await db.createBillingRecord({
+            userId,
+            type: 'monthly_subscription',
+            amount: (monthlyFee / 100).toFixed(2),
+            status: 'completed',
+          });
         }
-
-        await db.createSubscriptionRaw({
-          userId,
-          tier,
-          status: 'active',
-          setupFeePaid: true,
-          stripeCustomerId: stripeCustomerId || null,
-          stripeSubscriptionId: stripeSubscriptionId || null,
-          monthlyPrice: monthlyPriceValue,
-          startDate: new Date(),
-          renewalDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        });
-
-        // Create billing record
-        const setupFee = stripeService.PRICING[tier].setupFee;
-        const monthlyFee = stripeService.PRICING[tier].monthlyPrice;
-        await db.createBillingRecord({
-          userId,
-          type: 'setup_fee',
-          amount: (setupFee / 100).toFixed(2),
-          status: 'completed',
-          stripeChargeId: session.payment_intent as string,
-        });
-
-        await db.createBillingRecord({
-          userId,
-          type: 'monthly_subscription',
-          amount: (monthlyFee / 100).toFixed(2),
-          status: 'completed',
-        });
 
         // Get email from session metadata
         const email = session.metadata?.customerEmail || session.customer_email || '';
@@ -137,6 +138,7 @@ export const appRouter = router({
     // Deploy AI instance
     deployInstance: publicProcedure
       .input(z.object({
+        sessionId: z.string().min(1),
         userId: z.number().int().max(2147483647),
         userEmail: z.string().email(),
         aiRole: z.string(),
@@ -145,6 +147,13 @@ export const appRouter = router({
         connectedServices: z.array(z.string()),
       }))
       .mutation(async ({ input }) => {
+        // Verify the Stripe session belongs to this user (proof-of-purchase)
+        const session = await stripeService.getCheckoutSession(input.sessionId);
+        const metadataUserId = parseInt(session.metadata?.userId || '0');
+        if (metadataUserId !== input.userId) {
+          throw new Error('Session does not match user');
+        }
+
         const userId = input.userId;
         const subscription = await db.getSubscriptionByUserId(userId);
         

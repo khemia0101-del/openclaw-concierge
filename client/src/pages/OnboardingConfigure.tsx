@@ -67,17 +67,18 @@ export default function OnboardingConfigure() {
       return;
     }
     
-    if (!userId || !userEmail) {
+    if (!userId || !userEmail || !sessionId) {
       toast.error("Session expired. Please start over.");
       return;
     }
-    
+
     // Show deployment progress UI
     setDeploying(true);
-    
+
     // Start deployment in background
     try {
       await deployInstance.mutateAsync({
+        sessionId,
         userId,
         userEmail,
         aiRole,

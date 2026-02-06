@@ -238,3 +238,32 @@ export async function updateLeadStatus(email: string, status: 'lead' | 'checkout
   
   await db.update(leads).set(updateData).where(eq(leads.email, email));
 }
+
+/**
+ * After OAuth login, migrate any subscriptions/instances/billing created under a
+ * temporary userId (from onboarding) to the real authenticated user.
+ * Links via the leads table: lead.email matches the user's email,
+ * and lead.userId holds the temp userId used during onboarding.
+ */
+export async function migrateOrphanedRecords(userEmail: string, realUserId: number) {
+  const db = await getDb();
+  if (!db) return;
+
+  try {
+    const lead = await getLeadByEmail(userEmail);
+    if (!lead || !lead.userId || lead.userId === realUserId) return;
+
+    const tempUserId = lead.userId;
+
+    // Migrate subscriptions, billing records, and AI instances from temp → real userId
+    await db.update(subscriptions).set({ userId: realUserId } as any).where(eq(subscriptions.userId, tempUserId));
+    await db.update(billingRecords).set({ userId: realUserId } as any).where(eq(billingRecords.userId, tempUserId));
+    await db.update(aiInstances).set({ userId: realUserId } as any).where(eq(aiInstances.userId, tempUserId));
+
+    // Update the lead record to point at the real userId
+    await db.update(leads).set({ userId: realUserId, status: 'paid' } as any).where(eq(leads.email, userEmail));
+  } catch (error) {
+    console.error('[Database] Failed to migrate orphaned records:', error);
+    // Non-fatal: don't block login
+  }
+}
