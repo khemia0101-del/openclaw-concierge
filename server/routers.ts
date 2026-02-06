@@ -28,7 +28,7 @@ export const appRouter = router({
       .input(z.object({
         email: z.string().email(),
         tier: z.enum(['starter', 'pro', 'business']),
-        userId: z.number(),
+        userId: z.number().int().max(2147483647),
         origin: z.string().url(),
       }))
       .mutation(async ({ input }) => {
@@ -74,8 +74,8 @@ export const appRouter = router({
 
         // Use the canonical userId from the Stripe session metadata (set during checkout creation)
         const userId = parseInt(session.metadata?.userId || session.client_reference_id || '0');
-        if (!userId) {
-          throw new Error('User ID missing from payment session');
+        if (!userId || userId > 2147483647) {
+          throw new Error('User ID missing or invalid in payment session');
         }
 
         // Create subscription record
@@ -137,7 +137,7 @@ export const appRouter = router({
     // Deploy AI instance
     deployInstance: publicProcedure
       .input(z.object({
-        userId: z.number(),
+        userId: z.number().int().max(2147483647),
         userEmail: z.string().email(),
         aiRole: z.string(),
         telegramBotToken: z.string().optional(),

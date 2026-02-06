@@ -58,9 +58,8 @@ export default function Onboarding() {
   const handlePayment = async () => {
     setLoading(true);
     try {
-      // For MVP, we'll use a temporary user ID
-      // In production, this would come from authenticated user
-      const tempUserId = Date.now();
+      // Temporary user ID for MVP: use seconds (not ms) to fit within MySQL INT range (max 2,147,483,647)
+      const tempUserId = Math.floor(Date.now() / 1000);
       
       const result = await createCheckout.mutateAsync({
         email,
