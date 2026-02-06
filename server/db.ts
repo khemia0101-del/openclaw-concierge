@@ -105,10 +105,6 @@ export async function createSubscription(data: Partial<InsertSubscription> & { u
   const db = await getDb();
   if (!db) throw new Error('Database not available');
   
-  console.log('[createSubscription] Received data:', JSON.stringify(data, null, 2));
-  console.log('[createSubscription] Data keys:', Object.keys(data));
-  console.log('[createSubscription] Data values:', Object.values(data));
-  
   const result = await db.insert(subscriptions).values(data as any);
   return result;
 }
@@ -126,19 +122,6 @@ export async function createSubscriptionRaw(data: {
 }) {
   const db = await getDb();
   if (!db) throw new Error('Database not available');
-  
-  // Use raw SQL to bypass Drizzle ORM issues
-  console.log('[createSubscriptionRaw] Inserting with values:', {
-    userId: data.userId,
-    tier: data.tier,
-    status: data.status,
-    setupFeePaid: data.setupFeePaid,
-    stripeCustomerId: data.stripeCustomerId,
-    stripeSubscriptionId: data.stripeSubscriptionId,
-    monthlyPrice: data.monthlyPrice,
-    startDate: data.startDate,
-    renewalDate: data.renewalDate,
-  });
   
   const result = await db.execute(drizzleSql`
     INSERT INTO subscriptions (
@@ -158,7 +141,6 @@ export async function createSubscriptionRaw(data: {
     )
   `);
   
-  console.log('[createSubscriptionRaw] Insert successful');
   return result;
 }
 
@@ -252,7 +234,7 @@ export async function updateLeadStatus(email: string, status: 'lead' | 'checkout
   
   const updateData: any = { status, updatedAt: new Date() };
   if (stripeSessionId) updateData.stripeSessionId = stripeSessionId;
-  if (userId) updateData.userId = userId;
+  if (userId != null) updateData.userId = userId;
   
   await db.update(leads).set(updateData).where(eq(leads.email, email));
 }

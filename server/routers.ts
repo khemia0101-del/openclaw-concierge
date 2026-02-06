@@ -58,24 +58,29 @@ export const appRouter = router({
     verifyPayment: publicProcedure
       .input(z.object({
         sessionId: z.string(),
-        userId: z.number(),
       }))
       .mutation(async ({ input }) => {
         const session = await stripeService.getCheckoutSession(input.sessionId);
-        
+
         if (session.payment_status !== 'paid') {
           throw new Error('Payment not completed');
         }
-        
+
         // Get tier from session metadata
         const tier = session.metadata?.tier as 'starter' | 'pro' | 'business';
         if (!tier) {
           throw new Error('Tier information missing from payment session');
         }
-        
+
+        // Use the canonical userId from the Stripe session metadata (set during checkout creation)
+        const userId = parseInt(session.metadata?.userId || session.client_reference_id || '0');
+        if (!userId) {
+          throw new Error('User ID missing from payment session');
+        }
+
         // Create subscription record
         const monthlyPriceValue = (stripeService.PRICING[tier].monthlyPrice / 100).toFixed(2); // Convert cents to dollars with 2 decimal places
-        
+
         // Extract Stripe IDs - only include them if they have actual values
         let stripeCustomerId: string | undefined = undefined;
         if (typeof session.customer === 'string' && session.customer) {
@@ -83,7 +88,7 @@ export const appRouter = router({
         } else if (typeof session.customer === 'object' && session.customer?.id) {
           stripeCustomerId = session.customer.id;
         }
-        
+
         let stripeSubscriptionId: string | undefined = undefined;
         if (session.subscription) {
           if (typeof session.subscription === 'string' && session.subscription) {
@@ -92,29 +97,9 @@ export const appRouter = router({
             stripeSubscriptionId = session.subscription.id;
           }
         }
-        
-        // Build subscription data object, only including Stripe IDs if they exist
-        const subscriptionData: any = {
-          userId: input.userId,
-          tier,
-          status: 'active' as const,
-          setupFeePaid: true,
-          monthlyPrice: monthlyPriceValue,
-          startDate: new Date(),
-          renewalDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
-        };
-        
-        if (stripeCustomerId) {
-          subscriptionData.stripeCustomerId = stripeCustomerId;
-        }
-        if (stripeSubscriptionId) {
-          subscriptionData.stripeSubscriptionId = stripeSubscriptionId;
-        }
-        
-        // Use raw SQL to bypass Drizzle ORM issues
-        console.log('[verifyPayment] Creating subscription with raw SQL');
+
         await db.createSubscriptionRaw({
-          userId: input.userId,
+          userId,
           tier,
           status: 'active',
           setupFeePaid: true,
@@ -124,29 +109,29 @@ export const appRouter = router({
           startDate: new Date(),
           renewalDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         });
-        
+
         // Create billing record
         const setupFee = stripeService.PRICING[tier].setupFee;
         const monthlyFee = stripeService.PRICING[tier].monthlyPrice;
         await db.createBillingRecord({
-          userId: input.userId,
+          userId,
           type: 'setup_fee',
           amount: (setupFee / 100).toFixed(2),
           status: 'completed',
           stripeChargeId: session.payment_intent as string,
         });
-        
+
         await db.createBillingRecord({
-          userId: input.userId,
+          userId,
           type: 'monthly_subscription',
           amount: (monthlyFee / 100).toFixed(2),
           status: 'completed',
         });
-        
+
         // Get email from session metadata
         const email = session.metadata?.customerEmail || session.customer_email || '';
-        
-        return { success: true, email, tier };
+
+        return { success: true, email, tier, userId };
       }),
     
     // Deploy AI instance

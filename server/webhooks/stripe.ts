@@ -1,6 +1,5 @@
 import { Request, Response } from 'express';
 import { constructWebhookEvent } from '../services/stripe';
-import * as db from '../db';
 
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
 
