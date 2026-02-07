@@ -91,6 +91,11 @@ export async function createOpenClawApp(params: CreateAppParams): Promise<any> {
     ],
   };
 
+  if (!DO_API_TOKEN) {
+    console.error('[DigitalOcean] DO_API_TOKEN is not set — cannot provision apps');
+    throw new Error('DigitalOcean API token is not configured. Please set DO_API_TOKEN.');
+  }
+
   try {
     const response = await axios.post(
       `${DO_API_BASE}/apps`,
