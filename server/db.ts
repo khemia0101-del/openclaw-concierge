@@ -1,17 +1,20 @@
-import { eq, sql as drizzleSql } from "drizzle-orm";
+import { eq, and, desc, sql as drizzleSql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { 
-  InsertUser, 
-  User, 
-  users, 
-  subscriptions, 
+import {
+  InsertUser,
+  User,
+  users,
+  subscriptions,
   InsertSubscription,
   aiInstances,
   InsertAIInstance,
   billingRecords,
   InsertBillingRecord,
   leads,
-  InsertLead
+  InsertLead,
+  referrals,
+  affiliates,
+  commissions,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -237,6 +240,109 @@ export async function updateLeadStatus(email: string, status: 'lead' | 'checkout
   if (userId != null) updateData.userId = userId;
   
   await db.update(leads).set(updateData).where(eq(leads.email, email));
+}
+
+/**
+ * Create affiliate commission records when a referred user subscribes.
+ * Finds the referral for the user, updates its status, and creates commission entries
+ * for both the setup fee and first monthly payment.
+ */
+export async function createAffiliateCommission(
+  userId: number,
+  subscriptionId: number,
+  setupBillingResult: any,
+  monthlyBillingResult: any,
+) {
+  const db = await getDb();
+  if (!db) return;
+
+  try {
+    // Find a referral linked to this user (status = signed_up means they signed up but haven't subscribed yet)
+    const [referral] = await db
+      .select()
+      .from(referrals)
+      .where(
+        and(
+          eq(referrals.referredUserId, userId),
+          eq(referrals.status, "signed_up"),
+        ),
+      )
+      .orderBy(desc(referrals.createdAt))
+      .limit(1);
+
+    if (!referral) return;
+
+    // Get the affiliate's commission rate
+    const [affiliate] = await db
+      .select()
+      .from(affiliates)
+      .where(eq(affiliates.id, referral.affiliateId))
+      .limit(1);
+
+    if (!affiliate || affiliate.status !== "active") return;
+
+    const rate = parseFloat(affiliate.commissionRate) / 100; // e.g. 30.00 → 0.30
+
+    // Get billing records to calculate commission amounts
+    const allBilling = await getBillingRecordsByUserId(userId);
+    const setupRecord = allBilling.find(r => r.type === "setup_fee");
+    const monthlyRecord = allBilling.find(r => r.type === "monthly_subscription");
+
+    // Create commission for setup fee
+    if (setupRecord) {
+      const setupCommission = (parseFloat(setupRecord.amount) * rate).toFixed(2);
+      await db.insert(commissions).values({
+        affiliateId: affiliate.id,
+        referralId: referral.id,
+        subscriptionId,
+        billingRecordId: setupRecord.id,
+        amount: setupCommission,
+        commissionRate: affiliate.commissionRate,
+        status: "pending",
+        type: "setup_fee",
+      } as any);
+    }
+
+    // Create commission for first monthly payment
+    if (monthlyRecord) {
+      const monthlyCommission = (parseFloat(monthlyRecord.amount) * rate).toFixed(2);
+      await db.insert(commissions).values({
+        affiliateId: affiliate.id,
+        referralId: referral.id,
+        subscriptionId,
+        billingRecordId: monthlyRecord.id,
+        amount: monthlyCommission,
+        commissionRate: affiliate.commissionRate,
+        status: "pending",
+        type: "monthly_recurring",
+      } as any);
+    }
+
+    // Update referral status to subscribed
+    await db
+      .update(referrals)
+      .set({
+        status: "subscribed",
+        subscriptionId,
+        subscribedAt: new Date(),
+      } as any)
+      .where(eq(referrals.id, referral.id));
+
+    // Update affiliate earnings
+    const totalNewCommission = [setupRecord, monthlyRecord]
+      .filter(Boolean)
+      .reduce((sum, r) => sum + parseFloat(r!.amount) * rate, 0);
+
+    await db.execute(drizzleSql`
+      UPDATE affiliates
+      SET totalEarnings = totalEarnings + ${totalNewCommission.toFixed(2)},
+          pendingEarnings = pendingEarnings + ${totalNewCommission.toFixed(2)}
+      WHERE id = ${affiliate.id}
+    `);
+  } catch (error) {
+    console.error("[Database] Failed to create affiliate commission:", error);
+    // Non-fatal: don't block subscription creation
+  }
 }
 
 /**

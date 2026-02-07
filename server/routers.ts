@@ -99,6 +99,8 @@ export const appRouter = router({
             }
           }
 
+          const renewalDate = await stripeService.getRenewalDate(stripeSubscriptionId);
+
           await db.createSubscriptionRaw({
             userId,
             tier,
@@ -108,12 +110,12 @@ export const appRouter = router({
             stripeSubscriptionId: stripeSubscriptionId || null,
             monthlyPrice: monthlyPriceValue,
             startDate: new Date(),
-            renewalDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+            renewalDate,
           });
 
           const setupFee = stripeService.PRICING[tier].setupFee;
           const monthlyFee = stripeService.PRICING[tier].monthlyPrice;
-          await db.createBillingRecord({
+          const setupBillingResult = await db.createBillingRecord({
             userId,
             type: 'setup_fee',
             amount: (setupFee / 100).toFixed(2),
@@ -121,12 +123,18 @@ export const appRouter = router({
             stripeChargeId: session.payment_intent as string,
           });
 
-          await db.createBillingRecord({
+          const monthlyBillingResult = await db.createBillingRecord({
             userId,
             type: 'monthly_subscription',
             amount: (monthlyFee / 100).toFixed(2),
             status: 'completed',
           });
+
+          // Create affiliate commission if this user was referred
+          const newSub = await db.getSubscriptionByUserId(userId);
+          if (newSub) {
+            await db.createAffiliateCommission(userId, newSub.id, setupBillingResult, monthlyBillingResult);
+          }
         }
 
         // Get email from session metadata
@@ -135,6 +143,30 @@ export const appRouter = router({
         return { success: true, email, tier, userId };
       }),
     
+    // Check instance deployment status (polled by DeploymentProgress)
+    getInstanceStatus: publicProcedure
+      .input(z.object({
+        userId: z.number().int().max(2147483647),
+        sessionId: z.string().min(1),
+      }))
+      .query(async ({ input }) => {
+        // Verify caller owns this session (proof-of-purchase)
+        const session = await stripeService.getCheckoutSession(input.sessionId);
+        const metadataUserId = parseInt(session.metadata?.userId || '0');
+        if (metadataUserId !== input.userId) {
+          throw new Error('Session does not match user');
+        }
+
+        const instance = await db.getAIInstanceByUserId(input.userId);
+        if (!instance) return null;
+
+        return {
+          status: instance.status,
+          errorMessage: instance.errorMessage,
+          doAppId: instance.doAppId,
+        };
+      }),
+
     // Deploy AI instance
     deployInstance: publicProcedure
       .input(z.object({
@@ -142,7 +174,7 @@ export const appRouter = router({
         userId: z.number().int().max(2147483647),
         userEmail: z.string().email(),
         aiRole: z.string(),
-        telegramBotToken: z.string().optional(),
+        telegramBotToken: z.string().regex(/^\d+:[A-Za-z0-9_-]{20,}$/, 'Invalid Telegram bot token format. Expected format: 123456789:ABCdefGHI_jklMNO-pqrsTUVwxyz').optional().or(z.literal('')),
         communicationChannels: z.array(z.string()),
         connectedServices: z.array(z.string()),
       }))
@@ -213,9 +245,22 @@ export const appRouter = router({
     // Get user's subscription and instance details
     getStatus: protectedProcedure.query(async ({ ctx }) => {
       const subscription = await db.getSubscriptionByUserId(ctx.user.id);
-      const instance = await db.getAIInstanceByUserId(ctx.user.id);
+      let instance = await db.getAIInstanceByUserId(ctx.user.id);
       const billingRecords = await db.getBillingRecordsByUserId(ctx.user.id);
-      
+
+      // Detect stuck provisioning: if instance has been "provisioning" for > 10 minutes, mark as error
+      if (instance && instance.status === 'provisioning') {
+        const PROVISIONING_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+        const createdAt = new Date(instance.createdAt).getTime();
+        if (Date.now() - createdAt > PROVISIONING_TIMEOUT_MS) {
+          await db.updateAIInstance(instance.id, {
+            status: 'error',
+            errorMessage: 'Provisioning timed out. Please contact support or try restarting.',
+          });
+          instance = { ...instance, status: 'error', errorMessage: 'Provisioning timed out. Please contact support or try restarting.' };
+        }
+      }
+
       return {
         subscription,
         instance,

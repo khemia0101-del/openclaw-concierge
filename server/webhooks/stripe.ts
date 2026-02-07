@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { constructWebhookEvent, PRICING } from '../services/stripe';
+import { constructWebhookEvent, PRICING, getRenewalDate } from '../services/stripe';
 import * as db from '../db';
 
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
@@ -50,6 +50,8 @@ export async function handleStripeWebhook(req: Request, res: Response) {
           if (typeof session.subscription === 'string') stripeSubscriptionId = session.subscription;
           else if (session.subscription?.id) stripeSubscriptionId = session.subscription.id;
 
+          const renewalDate = await getRenewalDate(stripeSubscriptionId);
+
           await db.createSubscriptionRaw({
             userId,
             tier,
@@ -59,10 +61,10 @@ export async function handleStripeWebhook(req: Request, res: Response) {
             stripeSubscriptionId,
             monthlyPrice: monthlyPriceValue,
             startDate: new Date(),
-            renewalDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+            renewalDate,
           });
 
-          await db.createBillingRecord({
+          const setupBillingResult = await db.createBillingRecord({
             userId,
             type: 'setup_fee',
             amount: (PRICING[tier].setupFee / 100).toFixed(2),
@@ -70,7 +72,7 @@ export async function handleStripeWebhook(req: Request, res: Response) {
             stripeChargeId: session.payment_intent as string,
           });
 
-          await db.createBillingRecord({
+          const monthlyBillingResult = await db.createBillingRecord({
             userId,
             type: 'monthly_subscription',
             amount: monthlyPriceValue,
@@ -81,6 +83,12 @@ export async function handleStripeWebhook(req: Request, res: Response) {
           const email = session.metadata?.customerEmail || session.customer_email || '';
           if (email) {
             await db.updateLeadStatus(email, 'paid', session.id, userId);
+          }
+
+          // Create affiliate commission if this user was referred
+          const newSub = await db.getSubscriptionByUserId(userId);
+          if (newSub) {
+            await db.createAffiliateCommission(userId, newSub.id, setupBillingResult, monthlyBillingResult);
           }
         }
         break;

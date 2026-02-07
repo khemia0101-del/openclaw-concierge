@@ -106,4 +106,23 @@ export function constructWebhookEvent(
   return stripe.webhooks.constructEvent(payload, signature, secret);
 }
 
+/**
+ * Get the renewal date for a subscription. If a Stripe subscription exists,
+ * reads current_period_end from Stripe. Otherwise falls back to 30 days from now.
+ */
+export async function getRenewalDate(stripeSubscriptionId: string | null | undefined): Promise<Date> {
+  if (stripeSubscriptionId) {
+    try {
+      const sub = await stripe.subscriptions.retrieve(stripeSubscriptionId) as any;
+      if (sub.current_period_end) {
+        return new Date(sub.current_period_end * 1000);
+      }
+    } catch {
+      // Stripe subscription not found or API error — fall through to default
+    }
+  }
+  // Fallback: 30 days from now (used for one-time payment mode)
+  return new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+}
+
 export { stripe };

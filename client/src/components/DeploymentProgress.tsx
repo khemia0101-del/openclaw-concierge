@@ -1,67 +1,123 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, Check, AlertCircle } from "lucide-react";
+import { trpc } from "@/lib/trpc";
 
 type DeploymentStep = {
   id: string;
   label: string;
   status: "pending" | "in-progress" | "completed" | "error";
-  duration?: number; // estimated duration in seconds
 };
 
 type DeploymentProgressProps = {
+  userId: number;
+  sessionId: string;
   onComplete?: () => void;
   onError?: (error: string) => void;
 };
 
 const DEPLOYMENT_STEPS: DeploymentStep[] = [
-  { id: "verify", label: "Verifying payment", status: "pending", duration: 2 },
-  { id: "subscription", label: "Creating subscription", status: "pending", duration: 3 },
-  { id: "provision", label: "Provisioning server", status: "pending", duration: 15 },
-  { id: "configure", label: "Configuring AI assistant", status: "pending", duration: 10 },
-  { id: "deploy", label: "Deploying to production", status: "pending", duration: 8 },
-  { id: "ready", label: "AI Employee ready!", status: "pending", duration: 2 },
+  { id: "verify", label: "Verifying payment", status: "completed" },
+  { id: "subscription", label: "Creating subscription", status: "completed" },
+  { id: "provision", label: "Provisioning server", status: "in-progress" },
+  { id: "configure", label: "Configuring AI assistant", status: "pending" },
+  { id: "deploy", label: "Deploying to production", status: "pending" },
+  { id: "ready", label: "AI Employee ready!", status: "pending" },
 ];
 
-export default function DeploymentProgress({ onComplete, onError }: DeploymentProgressProps) {
+// Map instance status to step progress
+function getStepIndexForStatus(instanceStatus: string | undefined): number {
+  switch (instanceStatus) {
+    case "running": return 6; // all done
+    case "error": return -1; // error state
+    case "provisioning":
+    default: return 2; // still provisioning
+  }
+}
+
+export default function DeploymentProgress({ userId, sessionId, onComplete, onError }: DeploymentProgressProps) {
   const [steps, setSteps] = useState<DeploymentStep[]>(DEPLOYMENT_STEPS);
-  const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const completedRef = useRef(false);
+  const pollCountRef = useRef(0);
 
+  const updateStepsForIndex = useCallback((targetIndex: number) => {
+    setSteps(DEPLOYMENT_STEPS.map((step, idx) => {
+      if (idx < targetIndex) return { ...step, status: "completed" as const };
+      if (idx === targetIndex) return { ...step, status: "in-progress" as const };
+      return { ...step, status: "pending" as const };
+    }));
+  }, []);
+
+  // Poll real deployment status
   useEffect(() => {
-    if (currentStepIndex >= steps.length) {
-      // All steps completed
-      setTimeout(() => {
-        onComplete?.();
-      }, 1000);
-      return;
-    }
+    if (error || completedRef.current) return;
 
-    if (error) {
-      return;
-    }
+    const poll = async () => {
+      try {
+        const response = await fetch(
+          `/api/trpc/onboarding.getInstanceStatus?input=${encodeURIComponent(JSON.stringify({ userId, sessionId }))}`
+        );
+        const json = await response.json();
+        const data = json?.result?.data;
 
-    const currentStep = steps[currentStepIndex];
-    
-    // Mark current step as in-progress
-    setSteps(prev => prev.map((step, idx) => 
-      idx === currentStepIndex 
-        ? { ...step, status: "in-progress" as const }
-        : step
-    ));
+        if (!data) {
+          // Instance not created yet, stay on provisioning
+          pollCountRef.current++;
+          // Advance visual steps based on poll count to show progress
+          if (pollCountRef.current > 2) updateStepsForIndex(3); // configuring
+          if (pollCountRef.current > 5) updateStepsForIndex(4); // deploying
+          return;
+        }
 
-    // Simulate step completion after duration
-    const timer = setTimeout(() => {
-      setSteps(prev => prev.map((step, idx) => 
-        idx === currentStepIndex 
-          ? { ...step, status: "completed" as const }
-          : step
-      ));
-      setCurrentStepIndex(prev => prev + 1);
-    }, (currentStep.duration || 5) * 1000);
+        const instanceStatus = data.status;
 
-    return () => clearTimeout(timer);
-  }, [currentStepIndex, steps.length, onComplete, error]);
+        if (instanceStatus === "error") {
+          setError(data.errorMessage || "Deployment failed");
+          setSteps(prev => prev.map((step, idx) =>
+            idx === 2 ? { ...step, status: "error" as const } : step
+          ));
+          onError?.(data.errorMessage || "Deployment failed");
+          return;
+        }
+
+        if (instanceStatus === "running" && !completedRef.current) {
+          completedRef.current = true;
+          // Mark all steps complete
+          setSteps(DEPLOYMENT_STEPS.map(step => ({ ...step, status: "completed" as const })));
+          setTimeout(() => onComplete?.(), 1500);
+          return;
+        }
+
+        // Still provisioning — advance visual steps based on poll count
+        pollCountRef.current++;
+        if (pollCountRef.current > 6) updateStepsForIndex(4); // deploying
+        else if (pollCountRef.current > 3) updateStepsForIndex(3); // configuring
+        else updateStepsForIndex(2); // provisioning
+      } catch {
+        // Network error, just keep polling
+        pollCountRef.current++;
+      }
+    };
+
+    // Start polling every 3 seconds
+    const interval = setInterval(poll, 3000);
+    // Also run immediately
+    poll();
+
+    // Timeout after 5 minutes
+    const timeout = setTimeout(() => {
+      if (!completedRef.current) {
+        setError("Deployment is taking longer than expected. Check your dashboard for status.");
+        onError?.("Deployment timeout — check your dashboard");
+      }
+    }, 5 * 60 * 1000);
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
+  }, [userId, sessionId, error, onComplete, onError, updateStepsForIndex]);
 
   const getStepIcon = (step: DeploymentStep) => {
     switch (step.status) {
@@ -76,11 +132,8 @@ export default function DeploymentProgress({ onComplete, onError }: DeploymentPr
     }
   };
 
-  const totalDuration = DEPLOYMENT_STEPS.reduce((sum, step) => sum + (step.duration || 0), 0);
-  const completedDuration = steps
-    .slice(0, currentStepIndex)
-    .reduce((sum, step) => sum + (step.duration || 0), 0);
-  const progress = Math.min(100, Math.round((completedDuration / totalDuration) * 100));
+  const completedCount = steps.filter(s => s.status === "completed").length;
+  const progress = Math.min(100, Math.round((completedCount / steps.length) * 100));
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
@@ -129,7 +182,7 @@ export default function DeploymentProgress({ onComplete, onError }: DeploymentPr
                 </span>
                 {step.status === "in-progress" && (
                   <span className="text-sm text-gray-500">
-                    ~{step.duration}s
+                    working...
                   </span>
                 )}
               </div>

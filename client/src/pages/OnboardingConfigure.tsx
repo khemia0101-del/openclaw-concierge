@@ -61,14 +61,21 @@ export default function OnboardingConfigure() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run once on mount
 
+  const TELEGRAM_TOKEN_REGEX = /^\d+:[A-Za-z0-9_-]{20,}$/;
+
   const handleDeploy = async () => {
     if (!aiRole) {
       toast.error("Please describe your AI employee's role");
       return;
     }
-    
+
     if (!userId || !userEmail || !sessionId) {
       toast.error("Session expired. Please start over.");
+      return;
+    }
+
+    if (telegramBotToken && !TELEGRAM_TOKEN_REGEX.test(telegramBotToken)) {
+      toast.error("Invalid Telegram bot token format. Expected format: 123456789:ABCdefGHI_jklMNO-pqrsTUVwxyz");
       return;
     }
 
@@ -125,6 +132,8 @@ export default function OnboardingConfigure() {
   if (deploying) {
     return (
       <DeploymentProgress
+        userId={userId!}
+        sessionId={sessionId!}
         onComplete={() => {
           toast.success("AI Employee deployed successfully!");
           navigate("/dashboard");
