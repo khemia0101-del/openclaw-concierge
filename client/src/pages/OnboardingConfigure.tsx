@@ -82,7 +82,8 @@ export default function OnboardingConfigure() {
     // Show deployment progress UI
     setDeploying(true);
 
-    // Start deployment in background
+    // Kick off deployment — server returns immediately, provisioning runs in background.
+    // DeploymentProgress polls getInstanceStatus for real-time updates.
     try {
       await deployInstance.mutateAsync({
         sessionId,
@@ -93,9 +94,11 @@ export default function OnboardingConfigure() {
         communicationChannels,
         connectedServices,
       });
-      // Success handled by DeploymentProgress onComplete
+      // DeploymentProgress will handle success/error via polling
     } catch (error: any) {
-      toast.error(error.message || "Failed to deploy AI instance");
+      // This only fires if the mutation itself fails (auth, validation, DB)
+      // — not if the DO provisioning fails (that's handled by polling)
+      toast.error(error.message || "Failed to start deployment");
       setDeploying(false);
     }
   };
