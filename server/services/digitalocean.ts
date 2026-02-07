@@ -40,16 +40,16 @@ export async function createOpenClawApp(params: CreateAppParams): Promise<any> {
   const { userId, userEmail, aiRole, tier, telegramBotToken, config } = params;
 
   // Determine instance size based on tier
-  // See https://docs.digitalocean.com/products/app-platform/details/pricing/
+  // Valid slugs: basic-xxs, basic-xs, basic-s, basic-m, basic-l
   const instanceSizes = {
-    starter: 'apps-s-1vcpu-0.5gb',
-    pro: 'apps-s-1vcpu-1gb',
-    business: 'apps-s-1vcpu-2gb',
+    starter: 'basic-xxs',
+    pro: 'basic-xs',
+    business: 'basic-s',
   };
 
   const appSpec: AppSpec = {
     name: `openclaw-${userId}-${Date.now()}`,
-    region: 'nyc3',
+    region: 'nyc',
     services: [
       {
         name: 'openclaw-instance',
