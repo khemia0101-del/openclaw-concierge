@@ -1,0 +1,45 @@
+{
+  "query": "SELECT id, userId, status, errorMessage, createdAt FROM aiInstances ORDER BY createdAt DESC LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4GkNsMfGYpDKmHQ.f337f6b67493 --database nxhj2ewvCu9d8oqkqidBSu --execute SELECT id, userId, status, errorMessage, createdAt FROM aiInstances ORDER BY createdAt DESC LIMIT 5;",
+  "rows": [
+    {
+      "id": "120004",
+      "userId": "1770492138",
+      "status": "error",
+      "errorMessage": "Failed to provision AI instance",
+      "createdAt": "2026-02-07 19:22:56"
+    },
+    {
+      "id": "120003",
+      "userId": "1770491652",
+      "status": "error",
+      "errorMessage": "Failed to provision AI instance",
+      "createdAt": "2026-02-07 19:15:36"
+    },
+    {
+      "id": "120002",
+      "userId": "1770491349",
+      "status": "error",
+      "errorMessage": "Failed to provision AI instance",
+      "createdAt": "2026-02-07 19:09:42"
+    },
+    {
+      "id": "120001",
+      "userId": "1770488598",
+      "status": "error",
+      "errorMessage": "Failed to provision AI instance",
+      "createdAt": "2026-02-07 19:08:13"
+    },
+    {
+      "id": "90003",
+      "userId": "1770488598",
+      "status": "error",
+      "errorMessage": "Failed to provision AI instance",
+      "createdAt": "2026-02-07 18:24:22"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tuserId\tstatus\terrorMessage\tcreatedAt\n120004\t1770492138\terror\tFailed to provision AI instance\t2026-02-07 19:22:56\n120003\t1770491652\terror\tFailed to provision AI instance\t2026-02-07 19:15:36\n120002\t1770491349\terror\tFailed to provision AI instance\t2026-02-07 19:09:42\n120001\t1770488598\terror\tFailed to provision AI instance\t2026-02-07 19:08:13\n90003\t1770488598\terror\tFailed to provision AI instance\t2026-02-07 18:24:22\n",
+  "stderr": "",
+  "execution_time_ms": 362
+}
