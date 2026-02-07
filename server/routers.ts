@@ -208,6 +208,9 @@ export const appRouter = router({
         
         // Provision on DigitalOcean (async)
         try {
+          console.log('[Provisioning] Starting DigitalOcean app creation...');
+          console.log('[Provisioning] Params:', { userId, userEmail: input.userEmail, aiRole: input.aiRole, tier: subscription.tier });
+          
           const app = await digitaloceanService.createOpenClawApp({
             userId,
             userEmail: input.userEmail,
@@ -220,6 +223,8 @@ export const appRouter = router({
             },
           });
           
+          console.log('[Provisioning] Successfully created app:', app.id);
+          
           // Update instance with DO app details
           await db.updateAIInstance(instanceResult[0].insertId, {
             doAppId: app.id,
@@ -228,6 +233,9 @@ export const appRouter = router({
           
           return { success: true, appId: app.id };
         } catch (error: any) {
+          console.error('[Provisioning] Error:', error.message);
+          console.error('[Provisioning] Full error:', error);
+          
           // Update instance with error
           await db.updateAIInstance(instanceResult[0].insertId, {
             status: 'error',

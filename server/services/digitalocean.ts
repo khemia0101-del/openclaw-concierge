@@ -105,7 +105,11 @@ export async function createOpenClawApp(params: CreateAppParams): Promise<any> {
 
     return response.data.app;
   } catch (error: any) {
-    console.error('[DigitalOcean] Failed to create app:', error.response?.data || error.message);
+    console.error('[DigitalOcean] Failed to create app:');
+    console.error('Status:', error.response?.status);
+    console.error('Data:', error.response?.data);
+    console.error('Message:', error.message);
+    console.error('Full error:', error);
     throw new Error('Failed to provision AI instance');
   }
 }
