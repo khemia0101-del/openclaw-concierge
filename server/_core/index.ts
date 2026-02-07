@@ -1,5 +1,5 @@
 import "dotenv/config";
-import express from "express";
+import express, { Request, Response, NextFunction } from "express";
 import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
@@ -8,6 +8,40 @@ import { registerWebhookRoutes } from "./webhookRoutes";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+
+/**
+ * Simple in-memory rate limiter (no external deps).
+ * Sliding window per IP: allows `max` requests per `windowMs`.
+ */
+function createRateLimiter(windowMs: number, max: number) {
+  const hits = new Map<string, number[]>();
+
+  // Clean up stale entries every minute
+  setInterval(() => {
+    const cutoff = Date.now() - windowMs;
+    hits.forEach((timestamps: number[], key: string) => {
+      const valid = timestamps.filter((t: number) => t > cutoff);
+      if (valid.length === 0) hits.delete(key);
+      else hits.set(key, valid);
+    });
+  }, 60_000).unref();
+
+  return (req: Request, res: Response, next: NextFunction) => {
+    const ip = req.ip || req.socket.remoteAddress || "unknown";
+    const now = Date.now();
+    const cutoff = now - windowMs;
+    const timestamps = (hits.get(ip) || []).filter((t: number) => t > cutoff);
+
+    if (timestamps.length >= max) {
+      res.status(429).json({ error: "Too many requests, please try again later" });
+      return;
+    }
+
+    timestamps.push(now);
+    hits.set(ip, timestamps);
+    next();
+  };
+}
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -38,6 +72,11 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
+
+  // Rate limiting for API routes: 100 requests per minute per IP
+  const apiLimiter = createRateLimiter(60_000, 100);
+  app.use("/api/trpc", apiLimiter);
+
   // tRPC API
   app.use(
     "/api/trpc",

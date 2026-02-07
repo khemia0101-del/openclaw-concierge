@@ -36,6 +36,14 @@ export function registerOAuthRoutes(app: Express) {
         lastSignedIn: new Date(),
       });
 
+      // Link any subscriptions created during onboarding (under temp userId) to this real user
+      if (userInfo.email) {
+        const user = await db.getUserByOpenId(userInfo.openId);
+        if (user) {
+          await db.migrateOrphanedRecords(userInfo.email, user.id);
+        }
+      }
+
       const sessionToken = await sdk.createSessionToken(userInfo.openId, {
         name: userInfo.name || "",
         expiresInMs: ONE_YEAR_MS,

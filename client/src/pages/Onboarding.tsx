@@ -3,9 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Checkbox } from "@/components/ui/checkbox";
 import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
@@ -60,9 +58,8 @@ export default function Onboarding() {
   const handlePayment = async () => {
     setLoading(true);
     try {
-      // For MVP, we'll use a temporary user ID
-      // In production, this would come from authenticated user
-      const tempUserId = Date.now();
+      // Temporary user ID for MVP: use seconds (not ms) to fit within MySQL INT range (max 2,147,483,647)
+      const tempUserId = Math.floor(Date.now() / 1000);
       
       const result = await createCheckout.mutateAsync({
         email,

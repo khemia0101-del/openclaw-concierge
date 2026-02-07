@@ -13,7 +13,6 @@ import DeploymentProgress from "@/components/DeploymentProgress";
 
 export default function OnboardingConfigure() {
   const [, navigate] = useLocation();
-  const [loading, setLoading] = useState(false);
   const [verifying, setVerifying] = useState(true);
   const [deploying, setDeploying] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -45,15 +44,11 @@ export default function OnboardingConfigure() {
     // Verify payment and create subscription
     const verifyAndSetup = async () => {
       try {
-        // Use temporary user ID from session (same as onboarding)
-        const tempUserId = Date.now();
-        
         const result = await verifyPayment.mutateAsync({
           sessionId: sid,
-          userId: tempUserId,
         });
-        
-        setUserId(tempUserId);
+
+        setUserId(result.userId);
         setUserEmail(result.email);
         setVerifying(false);
       } catch (error: any) {
@@ -66,23 +61,31 @@ export default function OnboardingConfigure() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run once on mount
 
+  const TELEGRAM_TOKEN_REGEX = /^\d+:[A-Za-z0-9_-]{20,}$/;
+
   const handleDeploy = async () => {
     if (!aiRole) {
       toast.error("Please describe your AI employee's role");
       return;
     }
-    
-    if (!userId || !userEmail) {
+
+    if (!userId || !userEmail || !sessionId) {
       toast.error("Session expired. Please start over.");
       return;
     }
-    
+
+    if (telegramBotToken && !TELEGRAM_TOKEN_REGEX.test(telegramBotToken)) {
+      toast.error("Invalid Telegram bot token format. Expected format: 123456789:ABCdefGHI_jklMNO-pqrsTUVwxyz");
+      return;
+    }
+
     // Show deployment progress UI
     setDeploying(true);
-    
+
     // Start deployment in background
     try {
       await deployInstance.mutateAsync({
+        sessionId,
         userId,
         userEmail,
         aiRole,
@@ -129,6 +132,8 @@ export default function OnboardingConfigure() {
   if (deploying) {
     return (
       <DeploymentProgress
+        userId={userId!}
+        sessionId={sessionId!}
         onComplete={() => {
           toast.success("AI Employee deployed successfully!");
           navigate("/dashboard");
@@ -282,13 +287,13 @@ export default function OnboardingConfigure() {
             </div>
 
             {/* Deploy Button */}
-            <Button 
-              onClick={handleDeploy} 
-              disabled={loading || !aiRole}
+            <Button
+              onClick={handleDeploy}
+              disabled={deploying || !aiRole}
               className="w-full"
               size="lg"
             >
-              {loading ? (
+              {deploying ? (
                 <>
                   <Loader2 className="mr-2 w-4 h-4 animate-spin" />
                   Deploying Your AI Employee...

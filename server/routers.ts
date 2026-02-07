@@ -28,7 +28,7 @@ export const appRouter = router({
       .input(z.object({
         email: z.string().email(),
         tier: z.enum(['starter', 'pro', 'business']),
-        userId: z.number(),
+        userId: z.number().int().max(2147483647),
         origin: z.string().url(),
       }))
       .mutation(async ({ input }) => {
@@ -58,108 +58,134 @@ export const appRouter = router({
     verifyPayment: publicProcedure
       .input(z.object({
         sessionId: z.string(),
-        userId: z.number(),
       }))
       .mutation(async ({ input }) => {
         const session = await stripeService.getCheckoutSession(input.sessionId);
-        
+
         if (session.payment_status !== 'paid') {
           throw new Error('Payment not completed');
         }
-        
+
         // Get tier from session metadata
         const tier = session.metadata?.tier as 'starter' | 'pro' | 'business';
         if (!tier) {
           throw new Error('Tier information missing from payment session');
         }
-        
-        // Create subscription record
-        const monthlyPriceValue = (stripeService.PRICING[tier].monthlyPrice / 100).toFixed(2); // Convert cents to dollars with 2 decimal places
-        
-        // Extract Stripe IDs - only include them if they have actual values
-        let stripeCustomerId: string | undefined = undefined;
-        if (typeof session.customer === 'string' && session.customer) {
-          stripeCustomerId = session.customer;
-        } else if (typeof session.customer === 'object' && session.customer?.id) {
-          stripeCustomerId = session.customer.id;
+
+        // Use the canonical userId from the Stripe session metadata (set during checkout creation)
+        const userId = parseInt(session.metadata?.userId || session.client_reference_id || '0');
+        if (!userId || userId > 2147483647) {
+          throw new Error('User ID missing or invalid in payment session');
         }
-        
-        let stripeSubscriptionId: string | undefined = undefined;
-        if (session.subscription) {
-          if (typeof session.subscription === 'string' && session.subscription) {
-            stripeSubscriptionId = session.subscription;
-          } else if (typeof session.subscription === 'object' && session.subscription.id) {
-            stripeSubscriptionId = session.subscription.id;
+
+        // Idempotent: skip if subscription already created (e.g. by webhook)
+        const existing = await db.getSubscriptionByUserId(userId);
+        if (!existing) {
+          const monthlyPriceValue = (stripeService.PRICING[tier].monthlyPrice / 100).toFixed(2);
+
+          let stripeCustomerId: string | undefined = undefined;
+          if (typeof session.customer === 'string' && session.customer) {
+            stripeCustomerId = session.customer;
+          } else if (typeof session.customer === 'object' && session.customer?.id) {
+            stripeCustomerId = session.customer.id;
+          }
+
+          let stripeSubscriptionId: string | undefined = undefined;
+          if (session.subscription) {
+            if (typeof session.subscription === 'string' && session.subscription) {
+              stripeSubscriptionId = session.subscription;
+            } else if (typeof session.subscription === 'object' && session.subscription.id) {
+              stripeSubscriptionId = session.subscription.id;
+            }
+          }
+
+          const renewalDate = await stripeService.getRenewalDate(stripeSubscriptionId);
+
+          await db.createSubscriptionRaw({
+            userId,
+            tier,
+            status: 'active',
+            setupFeePaid: true,
+            stripeCustomerId: stripeCustomerId || null,
+            stripeSubscriptionId: stripeSubscriptionId || null,
+            monthlyPrice: monthlyPriceValue,
+            startDate: new Date(),
+            renewalDate,
+          });
+
+          const setupFee = stripeService.PRICING[tier].setupFee;
+          const monthlyFee = stripeService.PRICING[tier].monthlyPrice;
+          const setupBillingResult = await db.createBillingRecord({
+            userId,
+            type: 'setup_fee',
+            amount: (setupFee / 100).toFixed(2),
+            status: 'completed',
+            stripeChargeId: session.payment_intent as string,
+          });
+
+          const monthlyBillingResult = await db.createBillingRecord({
+            userId,
+            type: 'monthly_subscription',
+            amount: (monthlyFee / 100).toFixed(2),
+            status: 'completed',
+          });
+
+          // Create affiliate commission if this user was referred
+          const newSub = await db.getSubscriptionByUserId(userId);
+          if (newSub) {
+            await db.createAffiliateCommission(userId, newSub.id, setupBillingResult, monthlyBillingResult);
           }
         }
-        
-        // Build subscription data object, only including Stripe IDs if they exist
-        const subscriptionData: any = {
-          userId: input.userId,
-          tier,
-          status: 'active' as const,
-          setupFeePaid: true,
-          monthlyPrice: monthlyPriceValue,
-          startDate: new Date(),
-          renewalDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
-        };
-        
-        if (stripeCustomerId) {
-          subscriptionData.stripeCustomerId = stripeCustomerId;
-        }
-        if (stripeSubscriptionId) {
-          subscriptionData.stripeSubscriptionId = stripeSubscriptionId;
-        }
-        
-        // Use raw SQL to bypass Drizzle ORM issues
-        console.log('[verifyPayment] Creating subscription with raw SQL');
-        await db.createSubscriptionRaw({
-          userId: input.userId,
-          tier,
-          status: 'active',
-          setupFeePaid: true,
-          stripeCustomerId: stripeCustomerId || null,
-          stripeSubscriptionId: stripeSubscriptionId || null,
-          monthlyPrice: monthlyPriceValue,
-          startDate: new Date(),
-          renewalDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        });
-        
-        // Create billing record
-        const setupFee = stripeService.PRICING[tier].setupFee;
-        const monthlyFee = stripeService.PRICING[tier].monthlyPrice;
-        await db.createBillingRecord({
-          userId: input.userId,
-          type: 'setup_fee',
-          amount: (setupFee / 100).toFixed(2),
-          status: 'completed',
-          stripeChargeId: session.payment_intent as string,
-        });
-        
-        await db.createBillingRecord({
-          userId: input.userId,
-          type: 'monthly_subscription',
-          amount: (monthlyFee / 100).toFixed(2),
-          status: 'completed',
-        });
-        
+
         // Get email from session metadata
         const email = session.metadata?.customerEmail || session.customer_email || '';
-        
-        return { success: true, email, tier };
+
+        return { success: true, email, tier, userId };
       }),
     
+    // Check instance deployment status (polled by DeploymentProgress)
+    getInstanceStatus: publicProcedure
+      .input(z.object({
+        userId: z.number().int().max(2147483647),
+        sessionId: z.string().min(1),
+      }))
+      .query(async ({ input }) => {
+        // Verify caller owns this session (proof-of-purchase)
+        const session = await stripeService.getCheckoutSession(input.sessionId);
+        const metadataUserId = parseInt(session.metadata?.userId || '0');
+        if (metadataUserId !== input.userId) {
+          throw new Error('Session does not match user');
+        }
+
+        const instance = await db.getAIInstanceByUserId(input.userId);
+        if (!instance) return null;
+
+        return {
+          status: instance.status,
+          errorMessage: instance.errorMessage,
+          doAppId: instance.doAppId,
+        };
+      }),
+
     // Deploy AI instance
     deployInstance: publicProcedure
       .input(z.object({
-        userId: z.number(),
+        sessionId: z.string().min(1),
+        userId: z.number().int().max(2147483647),
         userEmail: z.string().email(),
         aiRole: z.string(),
-        telegramBotToken: z.string().optional(),
+        telegramBotToken: z.string().regex(/^\d+:[A-Za-z0-9_-]{20,}$/, 'Invalid Telegram bot token format. Expected format: 123456789:ABCdefGHI_jklMNO-pqrsTUVwxyz').optional().or(z.literal('')),
         communicationChannels: z.array(z.string()),
         connectedServices: z.array(z.string()),
       }))
       .mutation(async ({ input }) => {
+        // Verify the Stripe session belongs to this user (proof-of-purchase)
+        const session = await stripeService.getCheckoutSession(input.sessionId);
+        const metadataUserId = parseInt(session.metadata?.userId || '0');
+        if (metadataUserId !== input.userId) {
+          throw new Error('Session does not match user');
+        }
+
         const userId = input.userId;
         const subscription = await db.getSubscriptionByUserId(userId);
         
@@ -219,9 +245,22 @@ export const appRouter = router({
     // Get user's subscription and instance details
     getStatus: protectedProcedure.query(async ({ ctx }) => {
       const subscription = await db.getSubscriptionByUserId(ctx.user.id);
-      const instance = await db.getAIInstanceByUserId(ctx.user.id);
+      let instance = await db.getAIInstanceByUserId(ctx.user.id);
       const billingRecords = await db.getBillingRecordsByUserId(ctx.user.id);
-      
+
+      // Detect stuck provisioning: if instance has been "provisioning" for > 10 minutes, mark as error
+      if (instance && instance.status === 'provisioning') {
+        const PROVISIONING_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+        const createdAt = new Date(instance.createdAt).getTime();
+        if (Date.now() - createdAt > PROVISIONING_TIMEOUT_MS) {
+          await db.updateAIInstance(instance.id, {
+            status: 'error',
+            errorMessage: 'Provisioning timed out. Please contact support or try restarting.',
+          });
+          instance = { ...instance, status: 'error', errorMessage: 'Provisioning timed out. Please contact support or try restarting.' };
+        }
+      }
+
       return {
         subscription,
         instance,

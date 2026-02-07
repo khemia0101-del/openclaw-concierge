@@ -5,9 +5,22 @@ import { Badge } from "@/components/ui/badge";
 import { Check, Zap, Shield, Cpu, MessageSquare, Sparkles } from "lucide-react";
 import { Link } from "wouter";
 import { useEffect } from "react";
+import { trpc } from "@/lib/trpc";
 
 export default function Home() {
   const { isAuthenticated } = useAuth();
+  const trackClick = trpc.affiliate.trackClick.useMutation();
+
+  // Capture affiliate referral code from URL (?ref=CODE) and track the click
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const refCode = params.get("ref");
+    if (refCode && !localStorage.getItem("affiliate_tracked")) {
+      localStorage.setItem("affiliate_ref", refCode);
+      localStorage.setItem("affiliate_tracked", "1");
+      trackClick.mutate({ affiliateCode: refCode });
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // SEO: Set page title and meta tags
   useEffect(() => {
