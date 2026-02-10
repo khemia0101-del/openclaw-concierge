@@ -304,23 +304,22 @@ export const appRouter = router({
         return { ok: false, error: 'DO_API_TOKEN is not set in environment' };
       }
       try {
-        const axios = require('axios');
-        const resp = await axios.get('https://api.digitalocean.com/v2/account', {
+        const resp = await fetch('https://api.digitalocean.com/v2/account', {
           headers: { Authorization: `Bearer ${token}` },
-          timeout: 10000,
+          signal: AbortSignal.timeout(10000),
         });
+        const data = await resp.json();
+        if (!resp.ok) {
+          return { ok: false, status: resp.status, error: data };
+        }
         return {
           ok: true,
-          email: resp.data.account.email,
-          status: resp.data.account.status,
-          dropletLimit: resp.data.account.droplet_limit,
+          email: data.account.email,
+          status: data.account.status,
+          dropletLimit: data.account.droplet_limit,
         };
       } catch (e: any) {
-        return {
-          ok: false,
-          status: e.response?.status,
-          error: e.response?.data || e.message,
-        };
+        return { ok: false, error: e.message };
       }
     }),
 
