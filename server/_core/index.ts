@@ -64,6 +64,11 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 
 async function startServer() {
   const app = express();
+
+  // Trust the reverse proxy (Manus / cloud platform) so Express correctly reads
+  // req.protocol, req.ip, req.hostname from X-Forwarded-* headers.
+  app.set("trust proxy", 1);
+
   const server = createServer(app);
   // Register webhook routes BEFORE body parsers (they need raw body)
   registerWebhookRoutes(app);

@@ -40,6 +40,7 @@ export async function createOpenClawApp(params: CreateAppParams): Promise<any> {
   const { userId, userEmail, aiRole, tier, telegramBotToken, config } = params;
 
   // Determine instance size based on tier
+  // Valid slugs: basic-xxs, basic-xs, basic-s, basic-m, basic-l
   const instanceSizes = {
     starter: 'basic-xxs',
     pro: 'basic-xs',
@@ -54,7 +55,7 @@ export async function createOpenClawApp(params: CreateAppParams): Promise<any> {
         name: 'openclaw-instance',
         image: {
           registry_type: 'DOCKER_HUB',
-          repository: 'openclawai/openclaw',
+          repository: 'alpine/openclaw',
           tag: 'latest',
         },
         instance_count: 1,
@@ -91,6 +92,11 @@ export async function createOpenClawApp(params: CreateAppParams): Promise<any> {
     ],
   };
 
+  if (!DO_API_TOKEN) {
+    console.error('[DigitalOcean] DO_API_TOKEN is not set — cannot provision apps');
+    throw new Error('DigitalOcean API token is not configured. Please set DO_API_TOKEN.');
+  }
+
   try {
     const response = await axios.post(
       `${DO_API_BASE}/apps`,
@@ -105,12 +111,16 @@ export async function createOpenClawApp(params: CreateAppParams): Promise<any> {
 
     return response.data.app;
   } catch (error: any) {
-    console.error('[DigitalOcean] Failed to create app:');
-    console.error('Status:', error.response?.status);
-    console.error('Data:', error.response?.data);
-    console.error('Message:', error.message);
-    console.error('Full error:', error);
-    throw new Error('Failed to provision AI instance');
+    const doError = error.response?.data || error.message;
+    const statusCode = error.response?.status;
+    console.error('[DigitalOcean] Failed to create app:', JSON.stringify({
+      status: statusCode,
+      error: doError,
+      appName: appSpec.name,
+      region: appSpec.region,
+      instanceSize: instanceSizes[tier],
+    }));
+    throw new Error(`Failed to provision AI instance: ${typeof doError === 'object' ? JSON.stringify(doError) : doError}`);
   }
 }
 

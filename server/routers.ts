@@ -179,77 +179,150 @@ export const appRouter = router({
         connectedServices: z.array(z.string()),
       }))
       .mutation(async ({ input }) => {
-        // Verify the Stripe session belongs to this user (proof-of-purchase)
-        const session = await stripeService.getCheckoutSession(input.sessionId);
+        const userId = input.userId;
+
+        // Step 1: Verify Stripe session
+        let session;
+        try {
+          session = await stripeService.getCheckoutSession(input.sessionId);
+        } catch (err: any) {
+          console.error('[Deploy] Failed to retrieve Stripe session:', err.message);
+          throw new Error('Could not verify payment session. Please try again.');
+        }
+
         const metadataUserId = parseInt(session.metadata?.userId || '0');
-        if (metadataUserId !== input.userId) {
+        if (metadataUserId !== userId) {
           throw new Error('Session does not match user');
         }
 
-        const userId = input.userId;
-        const subscription = await db.getSubscriptionByUserId(userId);
-        
+        // Step 2: Get or wait for subscription
+        let subscription = await db.getSubscriptionByUserId(userId);
         if (!subscription) {
-          throw new Error('No active subscription found');
+          // Subscription might not be created yet if verifyPayment was slow.
+          // Try creating it here as a fallback.
+          console.warn('[Deploy] No subscription found for userId', userId, '— creating from session');
+          const tier = session.metadata?.tier as 'starter' | 'pro' | 'business';
+          if (tier && session.payment_status === 'paid') {
+            const monthlyPriceValue = (stripeService.PRICING[tier].monthlyPrice / 100).toFixed(2);
+            try {
+              await db.createSubscriptionRaw({
+                userId,
+                tier,
+                status: 'active',
+                setupFeePaid: true,
+                stripeCustomerId: typeof session.customer === 'string' ? session.customer : session.customer?.id || null,
+                stripeSubscriptionId: typeof session.subscription === 'string' ? session.subscription : session.subscription?.id || null,
+                monthlyPrice: monthlyPriceValue,
+                startDate: new Date(),
+                renewalDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+              });
+              subscription = await db.getSubscriptionByUserId(userId);
+            } catch (subErr: any) {
+              console.error('[Deploy] Failed to create fallback subscription:', subErr.message);
+            }
+          }
         }
-        
-        // Create AI instance record
-        const instanceResult = await db.createAIInstance({
+
+        if (!subscription) {
+          throw new Error('No active subscription found. Please contact support.');
+        }
+
+        // Step 3: Create AI instance (idempotent — skip if one already exists)
+        let instanceId: number;
+        const existingInstance = await db.getAIInstanceByUserId(userId);
+        if (existingInstance) {
+          instanceId = existingInstance.id;
+          // If there was a previous error, reset to provisioning for retry
+          if (existingInstance.status === 'error') {
+            await db.updateAIInstance(instanceId, {
+              status: 'provisioning',
+              errorMessage: null,
+              aiRole: input.aiRole,
+              telegramBotToken: input.telegramBotToken,
+              config: {
+                communicationChannels: input.communicationChannels,
+                connectedServices: input.connectedServices,
+              },
+            } as any);
+          }
+        } else {
+          try {
+            const instanceResult = await db.createAIInstance({
+              userId,
+              subscriptionId: subscription.id,
+              status: 'provisioning',
+              aiRole: input.aiRole,
+              telegramBotToken: input.telegramBotToken,
+              config: {
+                communicationChannels: input.communicationChannels,
+                connectedServices: input.connectedServices,
+              },
+            });
+            instanceId = instanceResult[0].insertId;
+          } catch (instErr: any) {
+            console.error('[Deploy] Failed to create AI instance record:', instErr.message);
+            throw new Error('Failed to create deployment record. Please try again.');
+          }
+        }
+
+        // Step 4: Provision on DigitalOcean in the background (fire-and-forget).
+        // The client polls getInstanceStatus to track progress.
+        digitaloceanService.createOpenClawApp({
           userId,
-          subscriptionId: subscription.id,
-          status: 'provisioning',
+          userEmail: input.userEmail,
           aiRole: input.aiRole,
+          tier: subscription.tier,
           telegramBotToken: input.telegramBotToken,
           config: {
             communicationChannels: input.communicationChannels,
             connectedServices: input.connectedServices,
           },
-        });
-        
-        // Provision on DigitalOcean (async)
-        try {
-          console.log('[Provisioning] Starting DigitalOcean app creation...');
-          console.log('[Provisioning] Params:', { userId, userEmail: input.userEmail, aiRole: input.aiRole, tier: subscription.tier });
-          
-          const app = await digitaloceanService.createOpenClawApp({
-            userId,
-            userEmail: input.userEmail,
-            aiRole: input.aiRole,
-            tier: subscription.tier,
-            telegramBotToken: input.telegramBotToken,
-            config: {
-              communicationChannels: input.communicationChannels,
-              connectedServices: input.connectedServices,
-            },
-          });
-          
-          console.log('[Provisioning] Successfully created app:', app.id);
-          
-          // Update instance with DO app details
-          await db.updateAIInstance(instanceResult[0].insertId, {
+        }).then(async (app) => {
+          await db.updateAIInstance(instanceId, {
             doAppId: app.id,
             status: 'running',
           });
-          
-          return { success: true, appId: app.id };
-        } catch (error: any) {
-          console.error('[Provisioning] Error:', error.message);
-          console.error('[Provisioning] Full error:', error);
-          
-          // Update instance with error
-          await db.updateAIInstance(instanceResult[0].insertId, {
+        }).catch(async (error: any) => {
+          await db.updateAIInstance(instanceId, {
             status: 'error',
             errorMessage: error.message,
           });
-          
-          throw error;
-        }
+          console.error('[Deploy] Background provisioning failed:', error.message);
+        });
+
+        return { success: true };
       }),
   }),
   
   affiliate: affiliateRouter,
   
   dashboard: router({
+    // Diagnostic: test DO API connectivity (temporary - remove after debugging)
+    testDOConnection: publicProcedure.query(async () => {
+      const token = process.env.DO_API_TOKEN;
+      if (!token) {
+        return { ok: false, error: 'DO_API_TOKEN is not set in environment' };
+      }
+      try {
+        const resp = await fetch('https://api.digitalocean.com/v2/account', {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: AbortSignal.timeout(10000),
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+          return { ok: false, status: resp.status, error: data };
+        }
+        return {
+          ok: true,
+          email: data.account.email,
+          status: data.account.status,
+          dropletLimit: data.account.droplet_limit,
+        };
+      } catch (e: any) {
+        return { ok: false, error: e.message };
+      }
+    }),
+
     // Get user's subscription and instance details
     getStatus: protectedProcedure.query(async ({ ctx }) => {
       const subscription = await db.getSubscriptionByUserId(ctx.user.id);
