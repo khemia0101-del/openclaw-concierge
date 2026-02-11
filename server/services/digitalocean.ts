@@ -6,8 +6,15 @@ const DO_API_BASE = 'https://api.digitalocean.com/v2';
 
 // The AI API key that powers each OpenClaw instance.
 // Platform provides this — cost is covered by the subscription.
-const AI_API_KEY = process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY || '';
-const AI_PROVIDER = process.env.ANTHROPIC_API_KEY ? 'anthropic' : 'openai';
+// Priority: Anthropic > OpenAI > OpenRouter (OpenAI-compatible with free models)
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
+const AI_API_KEY = process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY || OPENROUTER_API_KEY || '';
+const AI_PROVIDER: 'anthropic' | 'openai' | 'openrouter' =
+  process.env.ANTHROPIC_API_KEY ? 'anthropic' :
+  process.env.OPENAI_API_KEY ? 'openai' : 'openrouter';
+
+// Free model used via OpenRouter — keeps setup costs at zero
+const OPENROUTER_FREE_MODEL = 'meta-llama/llama-3.1-8b-instruct:free';
 
 export interface CreateAppParams {
   userId: number;
@@ -59,12 +66,6 @@ export async function createOpenClawApp(params: CreateAppParams): Promise<any> {
   // Build the environment variables that OpenClaw actually expects.
   // See: https://docs.openclaw.ai/gateway/configuration
   const envs: AppSpec['services'][0]['envs'] = [
-    // AI provider key — required for the bot brain
-    ...(AI_API_KEY ? [{
-      key: AI_PROVIDER === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY',
-      value: AI_API_KEY,
-      scope: 'RUN_TIME',
-    }] : []),
     // Gateway token for web UI access
     {
       key: 'OPENCLAW_GATEWAY_TOKEN',
@@ -78,6 +79,20 @@ export async function createOpenClawApp(params: CreateAppParams): Promise<any> {
       scope: 'RUN_TIME',
     },
   ];
+
+  // AI provider key — required for the bot brain
+  if (AI_API_KEY) {
+    if (AI_PROVIDER === 'anthropic') {
+      envs.push({ key: 'ANTHROPIC_API_KEY', value: AI_API_KEY, scope: 'RUN_TIME' });
+    } else if (AI_PROVIDER === 'openrouter') {
+      // OpenRouter is OpenAI-compatible — pass via OPENAI_API_KEY + custom base URL
+      envs.push({ key: 'OPENAI_API_KEY', value: AI_API_KEY, scope: 'RUN_TIME' });
+      envs.push({ key: 'OPENAI_BASE_URL', value: 'https://openrouter.ai/api/v1', scope: 'RUN_TIME' });
+      envs.push({ key: 'OPENAI_MODEL', value: OPENROUTER_FREE_MODEL, scope: 'RUN_TIME' });
+    } else {
+      envs.push({ key: 'OPENAI_API_KEY', value: AI_API_KEY, scope: 'RUN_TIME' });
+    }
+  }
 
   // Telegram bot token (if provided by customer)
   if (telegramBotToken) {
