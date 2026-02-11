@@ -106,6 +106,7 @@ export async function createOpenClawApp(params: CreateAppParams): Promise<any> {
           'Authorization': `Bearer ${DO_API_TOKEN}`,
           'Content-Type': 'application/json',
         },
+        timeout: 30000, // 30s — fail fast if DO API is unreachable
       }
     );
 

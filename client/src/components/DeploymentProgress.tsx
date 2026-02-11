@@ -137,10 +137,10 @@ export default function DeploymentProgress({ userId, sessionId, onComplete, onEr
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <Card className="w-full max-w-2xl">
+      <Card className="w-full max-w-2xl bg-white">
         <CardHeader>
-          <CardTitle className="text-2xl">Deploying Your AI Employee</CardTitle>
-          <CardDescription>
+          <CardTitle className="text-2xl text-gray-900">Deploying Your AI Employee</CardTitle>
+          <CardDescription className="text-gray-600">
             This usually takes 30-60 seconds. Please don't close this window.
           </CardDescription>
         </CardHeader>
@@ -175,7 +175,7 @@ export default function DeploymentProgress({ userId, sessionId, onComplete, onEr
                 }`}
               >
                 {getStepIcon(step)}
-                <span className={`flex-1 ${
+                <span className={`flex-1 text-gray-900 ${
                   step.status === "in-progress" ? "font-semibold" : ""
                 }`}>
                   {step.label}
@@ -196,7 +196,7 @@ export default function DeploymentProgress({ userId, sessionId, onComplete, onEr
             </div>
           )}
 
-          <div className="text-center text-sm text-gray-500">
+          <div className="text-center text-sm text-gray-600">
             <p>Your AI employee is being configured with your selected channels and integrations.</p>
             <p className="mt-1">You'll be redirected to your dashboard once deployment is complete.</p>
           </div>
