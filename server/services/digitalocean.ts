@@ -1,7 +1,20 @@
 import axios from 'axios';
+import crypto from 'crypto';
 
 const DO_API_TOKEN = process.env.DO_API_TOKEN || '';
 const DO_API_BASE = 'https://api.digitalocean.com/v2';
+
+// The AI API key that powers each OpenClaw instance.
+// Platform provides this — cost is covered by the subscription.
+// Priority: Anthropic > OpenAI > OpenRouter (OpenAI-compatible with free models)
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
+const AI_API_KEY = process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY || OPENROUTER_API_KEY || '';
+const AI_PROVIDER: 'anthropic' | 'openai' | 'openrouter' =
+  process.env.ANTHROPIC_API_KEY ? 'anthropic' :
+  process.env.OPENAI_API_KEY ? 'openai' : 'openrouter';
+
+// Free model used via OpenRouter — keeps setup costs at zero
+const OPENROUTER_FREE_MODEL = 'meta-llama/llama-3.1-8b-instruct:free';
 
 export interface CreateAppParams {
   userId: number;
@@ -47,12 +60,73 @@ export async function createOpenClawApp(params: CreateAppParams): Promise<any> {
     business: 'basic-s',
   };
 
+  // Generate a unique gateway token for this instance's web UI access
+  const gatewayToken = crypto.randomBytes(32).toString('hex');
+
+  // Build the environment variables that OpenClaw actually expects.
+  // See: https://docs.openclaw.ai/gateway/configuration
+  const envs: AppSpec['services'][0]['envs'] = [
+    // Gateway token for web UI access
+    {
+      key: 'OPENCLAW_GATEWAY_TOKEN',
+      value: gatewayToken,
+      scope: 'RUN_TIME',
+    },
+    // Bind to all interfaces so DO can route to it
+    {
+      key: 'OPENCLAW_GATEWAY_BIND',
+      value: '0.0.0.0',
+      scope: 'RUN_TIME',
+    },
+  ];
+
+  // AI provider key — required for the bot brain
+  if (AI_API_KEY) {
+    if (AI_PROVIDER === 'anthropic') {
+      envs.push({ key: 'ANTHROPIC_API_KEY', value: AI_API_KEY, scope: 'RUN_TIME' });
+    } else if (AI_PROVIDER === 'openrouter') {
+      // OpenRouter is OpenAI-compatible — pass via OPENAI_API_KEY + custom base URL
+      envs.push({ key: 'OPENAI_API_KEY', value: AI_API_KEY, scope: 'RUN_TIME' });
+      envs.push({ key: 'OPENAI_BASE_URL', value: 'https://openrouter.ai/api/v1', scope: 'RUN_TIME' });
+      envs.push({ key: 'OPENAI_MODEL', value: OPENROUTER_FREE_MODEL, scope: 'RUN_TIME' });
+    } else {
+      envs.push({ key: 'OPENAI_API_KEY', value: AI_API_KEY, scope: 'RUN_TIME' });
+    }
+  }
+
+  // Telegram bot token (if provided by customer)
+  if (telegramBotToken) {
+    envs.push({
+      key: 'TELEGRAM_BOT_TOKEN',
+      value: telegramBotToken,
+      scope: 'RUN_TIME',
+    });
+  }
+
+  // Pass the communication channels config so OpenClaw enables the right plugins
+  const channels = config?.communicationChannels || [];
+  if (channels.includes('whatsapp')) {
+    envs.push({ key: 'WHATSAPP_ENABLED', value: 'true', scope: 'RUN_TIME' });
+  }
+  if (channels.includes('discord')) {
+    envs.push({ key: 'DISCORD_ENABLED', value: 'true', scope: 'RUN_TIME' });
+  }
+
+  // Pass the AI role as the system prompt / soul
+  if (aiRole) {
+    envs.push({
+      key: 'OPENCLAW_SYSTEM_PROMPT',
+      value: aiRole,
+      scope: 'RUN_TIME',
+    });
+  }
+
   const appSpec: AppSpec = {
     name: `openclaw-${userId}-${Date.now()}`,
     region: 'nyc',
     services: [
       {
-        name: 'openclaw-instance',
+        name: 'openclaw-gateway',
         image: {
           registry_type: 'DOCKER_HUB',
           repository: 'alpine/openclaw',
@@ -60,34 +134,8 @@ export async function createOpenClawApp(params: CreateAppParams): Promise<any> {
         },
         instance_count: 1,
         instance_size_slug: instanceSizes[tier],
-        envs: [
-          {
-            key: 'USER_ID',
-            value: userId.toString(),
-            scope: 'RUN_TIME',
-          },
-          {
-            key: 'USER_EMAIL',
-            value: userEmail,
-            scope: 'RUN_TIME',
-          },
-          {
-            key: 'AI_ROLE',
-            value: aiRole,
-            scope: 'RUN_TIME',
-          },
-          {
-            key: 'TELEGRAM_BOT_TOKEN',
-            value: telegramBotToken || '',
-            scope: 'RUN_TIME',
-          },
-          {
-            key: 'CONFIG_JSON',
-            value: JSON.stringify(config),
-            scope: 'RUN_TIME',
-          },
-        ],
-        http_port: 8080,
+        envs,
+        http_port: 18789, // OpenClaw gateway default port
       },
     ],
   };
@@ -110,7 +158,8 @@ export async function createOpenClawApp(params: CreateAppParams): Promise<any> {
       }
     );
 
-    return response.data.app;
+    // Return the app data plus our generated gateway token
+    return { ...response.data.app, gatewayToken };
   } catch (error: any) {
     const doError = error.response?.data || error.message;
     const statusCode = error.response?.status;

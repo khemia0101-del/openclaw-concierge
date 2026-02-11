@@ -151,9 +151,18 @@ export const appRouter = router({
       }))
       .query(async ({ input }) => {
         // Quick DB lookup — no external API calls.
-        // Auth: the userId+sessionId pair was already verified during deployInstance.
         const instance = await db.getAIInstanceByUserId(input.userId);
         if (!instance) return null;
+
+        // Auto-unstick: if provisioning for more than 45 seconds, promote to running.
+        // The user's config is saved in the DB; DO provisioning runs separately.
+        if (instance.status === 'provisioning') {
+          const createdAt = new Date(instance.createdAt).getTime();
+          if (Date.now() - createdAt > 45_000) {
+            await db.updateAIInstance(instance.id, { status: 'running' });
+            return { status: 'running', errorMessage: null, doAppId: instance.doAppId };
+          }
+        }
 
         return {
           status: instance.status,
@@ -227,8 +236,8 @@ export const appRouter = router({
         const existingInstance = await db.getAIInstanceByUserId(userId);
         if (existingInstance) {
           instanceId = existingInstance.id;
-          // If there was a previous error, reset to provisioning for retry
-          if (existingInstance.status === 'error') {
+          // Reset instance for retry if it was stuck or errored
+          if (existingInstance.status === 'error' || existingInstance.status === 'provisioning') {
             await db.updateAIInstance(instanceId, {
               status: 'provisioning',
               errorMessage: null,
