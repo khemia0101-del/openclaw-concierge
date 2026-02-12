@@ -335,6 +335,7 @@ export default function Home() {
               monthly: "$49",
               originalMonthly: "$99",
               features: [
+                "Free AI model",
                 "Full OpenClaw deployment",
                 "Email support (24hr response)",
                 "1,000 AI tokens/month",
@@ -352,6 +353,8 @@ export default function Home() {
               monthly: "$99",
               originalMonthly: "$199",
               features: [
+                "Advanced AI model",
+                "Bring your own API key",
                 "Full OpenClaw deployment",
                 "Priority support (2hr response)",
                 "5,000 AI tokens/month",
@@ -371,6 +374,8 @@ export default function Home() {
               monthly: "$149",
               originalMonthly: "$299",
               features: [
+                "Best AI model",
+                "Bring your own API key",
                 "Full OpenClaw deployment",
                 "24/7 dedicated support (30min response)",
                 "Unlimited AI tokens",

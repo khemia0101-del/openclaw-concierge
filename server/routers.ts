@@ -181,6 +181,7 @@ export const appRouter = router({
         telegramBotToken: z.string().regex(/^\d+:[A-Za-z0-9_-]{20,}$/, 'Invalid Telegram bot token format. Expected format: 123456789:ABCdefGHI_jklMNO-pqrsTUVwxyz').optional().or(z.literal('')),
         communicationChannels: z.array(z.string()),
         connectedServices: z.array(z.string()),
+        customApiKey: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
         const userId = input.userId;
@@ -280,6 +281,7 @@ export const appRouter = router({
             aiRole: input.aiRole,
             tier: subscription.tier,
             telegramBotToken: input.telegramBotToken,
+            customApiKey: input.customApiKey,
             config: {
               communicationChannels: input.communicationChannels,
               connectedServices: input.connectedServices,
