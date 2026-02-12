@@ -25,21 +25,20 @@ const DEPLOYMENT_STEPS: DeploymentStep[] = [
   { id: "ready", label: "AI Employee ready!", status: "pending" },
 ];
 
-// Map instance status to step progress
-function getStepIndexForStatus(instanceStatus: string | undefined): number {
-  switch (instanceStatus) {
-    case "running": return 6; // all done
-    case "error": return -1; // error state
-    case "provisioning":
-    default: return 2; // still provisioning
-  }
-}
-
 export default function DeploymentProgress({ userId, sessionId, onComplete, onError }: DeploymentProgressProps) {
   const [steps, setSteps] = useState<DeploymentStep[]>(DEPLOYMENT_STEPS);
   const [error, setError] = useState<string | null>(null);
   const completedRef = useRef(false);
   const pollCountRef = useRef(0);
+
+  // Use tRPC query with automatic refetch — handles superjson deserialization
+  const { data } = trpc.onboarding.getInstanceStatus.useQuery(
+    { userId, sessionId },
+    {
+      refetchInterval: completedRef.current || error ? false : 3000,
+      retry: false,
+    }
+  );
 
   const updateStepsForIndex = useCallback((targetIndex: number) => {
     setSteps(DEPLOYMENT_STEPS.map((step, idx) => {
@@ -49,63 +48,45 @@ export default function DeploymentProgress({ userId, sessionId, onComplete, onEr
     }));
   }, []);
 
-  // Poll real deployment status
+  // React to polling data changes
   useEffect(() => {
     if (error || completedRef.current) return;
 
-    const poll = async () => {
-      try {
-        const response = await fetch(
-          `/api/trpc/onboarding.getInstanceStatus?input=${encodeURIComponent(JSON.stringify({ userId, sessionId }))}`
-        );
-        const json = await response.json();
-        const data = json?.result?.data;
+    pollCountRef.current++;
 
-        if (!data) {
-          // Instance not created yet, stay on provisioning
-          pollCountRef.current++;
-          // Advance visual steps based on poll count to show progress
-          if (pollCountRef.current > 2) updateStepsForIndex(3); // configuring
-          if (pollCountRef.current > 5) updateStepsForIndex(4); // deploying
-          return;
-        }
+    if (!data) {
+      // Instance not created yet — advance visual steps based on poll count
+      if (pollCountRef.current > 5) updateStepsForIndex(4);
+      else if (pollCountRef.current > 2) updateStepsForIndex(3);
+      return;
+    }
 
-        const instanceStatus = data.status;
+    const instanceStatus = data.status;
 
-        if (instanceStatus === "error") {
-          setError(data.errorMessage || "Deployment failed");
-          setSteps(prev => prev.map((step, idx) =>
-            idx === 2 ? { ...step, status: "error" as const } : step
-          ));
-          onError?.(data.errorMessage || "Deployment failed");
-          return;
-        }
+    if (instanceStatus === "error") {
+      setError(data.errorMessage || "Deployment failed");
+      setSteps(prev => prev.map((step, idx) =>
+        idx === 2 ? { ...step, status: "error" as const } : step
+      ));
+      onError?.(data.errorMessage || "Deployment failed");
+      return;
+    }
 
-        if (instanceStatus === "running" && !completedRef.current) {
-          completedRef.current = true;
-          // Mark all steps complete
-          setSteps(DEPLOYMENT_STEPS.map(step => ({ ...step, status: "completed" as const })));
-          setTimeout(() => onComplete?.(), 1500);
-          return;
-        }
+    if (instanceStatus === "running" && !completedRef.current) {
+      completedRef.current = true;
+      setSteps(DEPLOYMENT_STEPS.map(step => ({ ...step, status: "completed" as const })));
+      setTimeout(() => onComplete?.(), 1500);
+      return;
+    }
 
-        // Still provisioning — advance visual steps based on poll count
-        pollCountRef.current++;
-        if (pollCountRef.current > 6) updateStepsForIndex(4); // deploying
-        else if (pollCountRef.current > 3) updateStepsForIndex(3); // configuring
-        else updateStepsForIndex(2); // provisioning
-      } catch {
-        // Network error, just keep polling
-        pollCountRef.current++;
-      }
-    };
+    // Still provisioning — advance visual steps based on poll count
+    if (pollCountRef.current > 6) updateStepsForIndex(4);
+    else if (pollCountRef.current > 3) updateStepsForIndex(3);
+    else updateStepsForIndex(2);
+  }, [data, error, onComplete, onError, updateStepsForIndex]);
 
-    // Start polling every 3 seconds
-    const interval = setInterval(poll, 3000);
-    // Also run immediately
-    poll();
-
-    // Timeout after 5 minutes
+  // Timeout after 5 minutes
+  useEffect(() => {
     const timeout = setTimeout(() => {
       if (!completedRef.current) {
         setError("Deployment is taking longer than expected. Check your dashboard for status.");
@@ -113,11 +94,8 @@ export default function DeploymentProgress({ userId, sessionId, onComplete, onEr
       }
     }, 5 * 60 * 1000);
 
-    return () => {
-      clearInterval(interval);
-      clearTimeout(timeout);
-    };
-  }, [userId, sessionId, error, onComplete, onError, updateStepsForIndex]);
+    return () => clearTimeout(timeout);
+  }, [onError]);
 
   const getStepIcon = (step: DeploymentStep) => {
     switch (step.status) {
@@ -152,7 +130,7 @@ export default function DeploymentProgress({ userId, sessionId, onComplete, onEr
               <span>{progress}%</span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2">
-              <div 
+              <div
                 className="bg-blue-600 h-2 rounded-full transition-all duration-500"
                 style={{ width: `${progress}%` }}
               />
@@ -161,12 +139,12 @@ export default function DeploymentProgress({ userId, sessionId, onComplete, onEr
 
           {/* Steps list */}
           <div className="space-y-4">
-            {steps.map((step, index) => (
-              <div 
+            {steps.map((step) => (
+              <div
                 key={step.id}
                 className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${
-                  step.status === "in-progress" 
-                    ? "bg-blue-50 border border-blue-200" 
+                  step.status === "in-progress"
+                    ? "bg-blue-50 border border-blue-200"
                     : step.status === "completed"
                     ? "bg-green-50"
                     : step.status === "error"
