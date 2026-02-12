@@ -375,6 +375,64 @@ export const appRouter = router({
       return { success: true };
     }),
     
+    // Retry deployment for failed/errored instances
+    retryDeploy: protectedProcedure.mutation(async ({ ctx }) => {
+      const instance = await db.getAIInstanceByUserId(ctx.user.id);
+      if (!instance) {
+        throw new Error('No instance found');
+      }
+      if (instance.status !== 'error') {
+        throw new Error('Instance is not in an error state');
+      }
+
+      const subscription = await db.getSubscriptionByUserId(ctx.user.id);
+      if (!subscription) {
+        throw new Error('No active subscription found');
+      }
+
+      if (!process.env.DO_API_TOKEN) {
+        throw new Error('Cloud hosting is not configured. Please contact support.');
+      }
+
+      // Reset to provisioning
+      await db.updateAIInstance(instance.id, {
+        status: 'provisioning',
+        errorMessage: null,
+        createdAt: new Date(), // Reset timer
+      } as any);
+
+      // Fire off DO provisioning
+      digitaloceanService.createOpenClawApp({
+        userId: ctx.user.id,
+        userEmail: ctx.user.email || '',
+        aiRole: instance.aiRole || '',
+        tier: subscription.tier,
+        telegramBotToken: instance.telegramBotToken || undefined,
+        config: (instance.config as Record<string, any>) || {},
+      }).then(async (app) => {
+        const instanceUrl = app.live_url || (app.default_ingress ? `https://${app.default_ingress}` : null);
+        await db.updateAIInstance(instance.id, {
+          doAppId: app.id,
+          status: 'running',
+          errorMessage: null,
+          config: {
+            ...((instance.config as Record<string, any>) || {}),
+            gatewayToken: app.gatewayToken,
+            instanceUrl,
+          },
+        } as any);
+        console.log('[RetryDeploy] DO app created:', app.id, 'URL:', instanceUrl);
+      }).catch(async (error: any) => {
+        console.error('[RetryDeploy] DO provisioning failed:', error.message);
+        await db.updateAIInstance(instance.id, {
+          status: 'error',
+          errorMessage: `Deployment failed: ${error.message}`,
+        });
+      });
+
+      return { success: true };
+    }),
+
     // Get instance logs
     getLogs: protectedProcedure.query(async ({ ctx }) => {
       const instance = await db.getAIInstanceByUserId(ctx.user.id);

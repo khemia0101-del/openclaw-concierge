@@ -20,6 +20,7 @@ export default function Dashboard() {
     },
   });
   const restartInstance = trpc.dashboard.restartInstance.useMutation();
+  const retryDeploy = trpc.dashboard.retryDeploy.useMutation();
   const { data: logsData } = trpc.dashboard.getLogs.useQuery(undefined, {
     enabled: isAuthenticated && !!status?.instance?.doAppId && status.instance.status === "running",
     refetchInterval: 30000,
@@ -33,6 +34,16 @@ export default function Dashboard() {
       refetch();
     } catch (error: any) {
       toast.error(error.message || "Failed to restart instance");
+    }
+  };
+
+  const handleRetryDeploy = async () => {
+    try {
+      await retryDeploy.mutateAsync();
+      toast.success("Retrying deployment...");
+      refetch();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to retry deployment");
     }
   };
 
@@ -141,11 +152,27 @@ export default function Dashboard() {
           <CardContent>
             {status?.instance ? (
               <div className="space-y-5">
-                {/* Error message */}
-                {status.instance.errorMessage && (
+                {/* Error message with retry */}
+                {status.instance.status === "error" && (
                   <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                    <p className="text-sm font-medium text-red-900">Something went wrong</p>
-                    <p className="text-sm text-red-700 mt-1">{status.instance.errorMessage}</p>
+                    <p className="text-sm font-medium text-red-900">Deployment failed</p>
+                    {status.instance.errorMessage && (
+                      <p className="text-sm text-red-700 mt-1">{status.instance.errorMessage}</p>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-3"
+                      onClick={handleRetryDeploy}
+                      disabled={retryDeploy.isPending}
+                    >
+                      {retryDeploy.isPending ? (
+                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      ) : (
+                        <RefreshCw className="w-4 h-4 mr-2" />
+                      )}
+                      Retry Deployment
+                    </Button>
                   </div>
                 )}
 

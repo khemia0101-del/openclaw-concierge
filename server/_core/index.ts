@@ -62,7 +62,26 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
   throw new Error(`No available port found starting from ${startPort}`);
 }
 
+// Startup environment check — log warnings for missing keys
+function checkEnvironment() {
+  const required = [
+    ['DATABASE_URL', 'Database connection'],
+    ['STRIPE_SECRET_KEY', 'Stripe payments'],
+  ];
+  const recommended = [
+    ['DO_API_TOKEN', 'DigitalOcean provisioning — instances will fail to deploy'],
+    ['OPENROUTER_API_KEY', 'AI model provider — bots will have no AI brain'],
+  ];
+  for (const [key, desc] of required) {
+    if (!process.env[key]) console.error(`[ENV] MISSING REQUIRED: ${key} — ${desc} will not work`);
+  }
+  for (const [key, desc] of recommended) {
+    if (!process.env[key]) console.warn(`[ENV] MISSING: ${key} — ${desc}`);
+  }
+}
+
 async function startServer() {
+  checkEnvironment();
   const app = express();
 
   // Trust the reverse proxy (Manus / cloud platform) so Express correctly reads
