@@ -290,8 +290,9 @@ export const appRouter = router({
             await db.updateAIInstance(instanceId, {
               doAppId: app.id,
               status: 'running',
+              deploymentId: app.live_url || null,
             });
-            console.log('[Deploy] DO app created:', app.id);
+            console.log('[Deploy] DO app created:', app.id, 'live_url:', app.live_url);
           }).catch(async (error: any) => {
             console.error('[Deploy] DO provisioning failed:', error.message);
             // Mark as running anyway — the config is saved, user can reach dashboard.
