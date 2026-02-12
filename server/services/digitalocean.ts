@@ -13,8 +13,12 @@ const AI_PROVIDER: 'anthropic' | 'openai' | 'openrouter' =
   process.env.ANTHROPIC_API_KEY ? 'anthropic' :
   process.env.OPENAI_API_KEY ? 'openai' : 'openrouter';
 
-// Free model used via OpenRouter — keeps setup costs at zero
-const OPENROUTER_FREE_MODEL = 'meta-llama/llama-3.1-8b-instruct:free';
+// OpenRouter models per tier — higher plans get smarter AI
+const OPENROUTER_MODELS: Record<string, string> = {
+  starter: 'meta-llama/llama-3.1-8b-instruct:free',
+  pro: 'anthropic/claude-3.5-haiku',
+  business: 'anthropic/claude-sonnet-4-5',
+};
 
 export interface CreateAppParams {
   userId: number;
@@ -86,9 +90,10 @@ export async function createOpenClawApp(params: CreateAppParams): Promise<any> {
       envs.push({ key: 'ANTHROPIC_API_KEY', value: AI_API_KEY, scope: 'RUN_TIME' });
     } else if (AI_PROVIDER === 'openrouter') {
       // OpenRouter is OpenAI-compatible — pass via OPENAI_API_KEY + custom base URL
+      const model = OPENROUTER_MODELS[tier] || OPENROUTER_MODELS.starter;
       envs.push({ key: 'OPENAI_API_KEY', value: AI_API_KEY, scope: 'RUN_TIME' });
       envs.push({ key: 'OPENAI_BASE_URL', value: 'https://openrouter.ai/api/v1', scope: 'RUN_TIME' });
-      envs.push({ key: 'OPENAI_MODEL', value: OPENROUTER_FREE_MODEL, scope: 'RUN_TIME' });
+      envs.push({ key: 'OPENAI_MODEL', value: model, scope: 'RUN_TIME' });
     } else {
       envs.push({ key: 'OPENAI_API_KEY', value: AI_API_KEY, scope: 'RUN_TIME' });
     }

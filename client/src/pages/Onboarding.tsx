@@ -16,19 +16,19 @@ const PRICING_TIERS = {
     name: "Starter",
     setupFee: 250,
     monthly: 49,
-    features: ["Basic AI capabilities", "Email support", "1,000 tokens/month", "Telegram integration"],
+    features: ["Llama 3.1 AI model", "Email support", "1,000 tokens/month", "Telegram integration"],
   },
   pro: {
     name: "Pro",
     setupFee: 250,
     monthly: 99,
-    features: ["Advanced AI capabilities", "Priority support", "5,000 tokens/month", "Multi-channel integration", "Custom skills"],
+    features: ["Claude 3.5 Haiku AI model", "Priority support", "5,000 tokens/month", "Multi-channel integration", "Custom skills"],
   },
   business: {
     name: "Business",
     setupFee: 250,
     monthly: 149,
-    features: ["Enterprise AI capabilities", "24/7 support", "Unlimited tokens", "All integrations", "Custom development", "Dedicated account manager"],
+    features: ["Claude Sonnet 4.5 AI model", "24/7 support", "Unlimited tokens", "All integrations", "Custom development", "Dedicated account manager"],
   },
 };
 
