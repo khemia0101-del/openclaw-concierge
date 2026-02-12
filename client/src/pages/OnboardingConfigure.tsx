@@ -24,6 +24,8 @@ export default function OnboardingConfigure() {
   const [telegramBotToken, setTelegramBotToken] = useState("");
   const [communicationChannels, setCommunicationChannels] = useState<string[]>(["telegram"]);
   const [connectedServices, setConnectedServices] = useState<string[]>([]);
+  const [tier, setTier] = useState<string>("");
+  const [customApiKey, setCustomApiKey] = useState("");
   
   const deployInstance = trpc.onboarding.deployInstance.useMutation();
   const verifyPayment = trpc.onboarding.verifyPayment.useMutation();
@@ -50,6 +52,7 @@ export default function OnboardingConfigure() {
 
         setUserId(result.userId);
         setUserEmail(result.email);
+        setTier(result.tier);
         setVerifying(false);
       } catch (error: any) {
         toast.error("Failed to verify payment: " + error.message);
@@ -93,6 +96,7 @@ export default function OnboardingConfigure() {
         telegramBotToken: telegramBotToken || undefined,
         communicationChannels,
         connectedServices,
+        customApiKey: customApiKey || undefined,
       });
       // DeploymentProgress will handle success/error via polling
     } catch (error: any) {
@@ -248,6 +252,24 @@ export default function OnboardingConfigure() {
                 />
                 <p className="text-sm text-muted-foreground mt-1">
                   Leave empty to use our managed bot, or provide your own bot token
+                </p>
+              </div>
+            )}
+
+            {/* Bring Your Own API Key (Pro & Business only) */}
+            {(tier === "pro" || tier === "business") && (
+              <div>
+                <Label htmlFor="customApiKey">Your Own AI API Key (Optional)</Label>
+                <Input
+                  id="customApiKey"
+                  type="password"
+                  placeholder="sk-... or sk-or-v1-..."
+                  value={customApiKey}
+                  onChange={(e) => setCustomApiKey(e.target.value)}
+                  className="mt-1"
+                />
+                <p className="text-sm text-muted-foreground mt-1">
+                  Bring your own OpenAI, Anthropic, or OpenRouter key for a model of your choice. Leave empty to use our default model.
                 </p>
               </div>
             )}

@@ -335,7 +335,7 @@ export default function Home() {
               monthly: "$49",
               originalMonthly: "$99",
               features: [
-                "Llama 3.1 AI model",
+                "Free AI model",
                 "Full OpenClaw deployment",
                 "Email support (24hr response)",
                 "1,000 AI tokens/month",
@@ -353,7 +353,8 @@ export default function Home() {
               monthly: "$99",
               originalMonthly: "$199",
               features: [
-                "Claude 3.5 Haiku AI model",
+                "Advanced AI model",
+                "Bring your own API key",
                 "Full OpenClaw deployment",
                 "Priority support (2hr response)",
                 "5,000 AI tokens/month",
@@ -373,7 +374,8 @@ export default function Home() {
               monthly: "$149",
               originalMonthly: "$299",
               features: [
-                "Claude Sonnet 4.5 AI model",
+                "Best AI model",
+                "Bring your own API key",
                 "Full OpenClaw deployment",
                 "24/7 dedicated support (30min response)",
                 "Unlimited AI tokens",
