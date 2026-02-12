@@ -150,19 +150,8 @@ export const appRouter = router({
         sessionId: z.string().min(1),
       }))
       .query(async ({ input }) => {
-        // Quick DB lookup — no external API calls.
         const instance = await db.getAIInstanceByUserId(input.userId);
         if (!instance) return null;
-
-        // Auto-unstick: if provisioning for more than 45 seconds, promote to running.
-        // The user's config is saved in the DB; DO provisioning runs separately.
-        if (instance.status === 'provisioning') {
-          const createdAt = new Date(instance.createdAt).getTime();
-          if (Date.now() - createdAt > 45_000) {
-            await db.updateAIInstance(instance.id, { status: 'running' });
-            return { status: 'running', errorMessage: null, doAppId: instance.doAppId };
-          }
-        }
 
         return {
           status: instance.status,
@@ -287,25 +276,31 @@ export const appRouter = router({
               connectedServices: input.connectedServices,
             },
           }).then(async (app) => {
+            // Store the app ID, gateway token, and live URL so customer can access their instance
+            const instanceUrl = app.live_url || (app.default_ingress ? `https://${app.default_ingress}` : null);
             await db.updateAIInstance(instanceId, {
               doAppId: app.id,
               status: 'running',
-            });
-            console.log('[Deploy] DO app created:', app.id);
+              config: {
+                communicationChannels: input.communicationChannels,
+                connectedServices: input.connectedServices,
+                gatewayToken: app.gatewayToken,
+                instanceUrl,
+              },
+            } as any);
+            console.log('[Deploy] DO app created:', app.id, 'URL:', instanceUrl);
           }).catch(async (error: any) => {
             console.error('[Deploy] DO provisioning failed:', error.message);
-            // Mark as running anyway — the config is saved, user can reach dashboard.
-            // DO provisioning can be retried later.
             await db.updateAIInstance(instanceId, {
-              status: 'running',
-              errorMessage: `Note: Cloud provisioning pending — ${error.message}`,
+              status: 'error',
+              errorMessage: `Deployment failed: ${error.message}. Please contact support.`,
             });
           });
         } else {
-          // No DO token — mark as running immediately so user isn't stuck.
-          console.warn('[Deploy] DO_API_TOKEN not set — skipping cloud provisioning');
+          console.error('[Deploy] DO_API_TOKEN not set — cannot provision');
           await db.updateAIInstance(instanceId, {
-            status: 'running',
+            status: 'error',
+            errorMessage: 'Cloud hosting is not configured. Please contact support.',
           });
         }
 

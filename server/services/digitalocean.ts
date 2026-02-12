@@ -264,7 +264,7 @@ export async function restartApp(appId: string): Promise<void> {
 /**
  * Get app logs
  */
-export async function getAppLogs(appId: string, componentName: string = 'openclaw-instance'): Promise<string[]> {
+export async function getAppLogs(appId: string, componentName: string = 'openclaw-gateway'): Promise<string[]> {
   try {
     const response = await axios.get(
       `${DO_API_BASE}/apps/${appId}/components/${componentName}/logs`,
