@@ -294,3 +294,7 @@
 - [x] Replace db.createSubscription with raw SQL execution
 - [x] Test subscription creation with raw SQL (all tests passing)
 - [ ] Verify database records are created correctly in production
+
+## Phase 37: Fix DO_API_TOKEN Timing & Empty live_url
+- [x] Fix DO_API_TOKEN read at request time instead of module load time in digitalocean.ts
+- [x] Construct fallback URL from DO app name pattern when live_url is empty

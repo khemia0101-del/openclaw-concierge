@@ -3,13 +3,30 @@ import crypto from 'crypto';
 
 const DO_API_BASE = 'https://api.digitalocean.com/v2';
 
-// Read env vars lazily via getters so they pick up values set after module load
-function getDOToken() { return process.env.DO_API_TOKEN || ''; }
-function getAIKey() { return process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY || ''; }
-function getAIProvider(): 'anthropic' | 'openai' | 'openrouter' {
-  if (process.env.ANTHROPIC_API_KEY) return 'anthropic';
-  if (process.env.OPENAI_API_KEY) return 'openai';
-  return 'openrouter';
+/**
+ * Read DO_API_TOKEN at request time (not module load time).
+ * This avoids the race condition where dotenv hasn't loaded yet
+ * when the module is first imported.
+ */
+function getDoToken(): string {
+  const token = process.env.DO_API_TOKEN || '';
+  if (!token) {
+    console.error('[DigitalOcean] DO_API_TOKEN is not set — cannot provision apps');
+    throw new Error('DigitalOcean API token is not configured. Please set DO_API_TOKEN.');
+  }
+  return token;
+}
+
+// The AI API key that powers each OpenClaw instance.
+// Platform provides this — cost is covered by the subscription.
+// Priority: Anthropic > OpenAI > OpenRouter (OpenAI-compatible with free models)
+function getAIConfig() {
+  const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
+  const AI_API_KEY = process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY || OPENROUTER_API_KEY || '';
+  const AI_PROVIDER: 'anthropic' | 'openai' | 'openrouter' =
+    process.env.ANTHROPIC_API_KEY ? 'anthropic' :
+    process.env.OPENAI_API_KEY ? 'openai' : 'openrouter';
+  return { AI_API_KEY, AI_PROVIDER, OPENROUTER_API_KEY };
 }
 
 // OpenRouter models per tier — higher plans get smarter AI
@@ -51,10 +68,22 @@ export interface AppSpec {
 }
 
 /**
+ * Construct the expected live URL from the DO app name.
+ * DO App Platform URLs follow the pattern: https://{app-name}-{random}.ondigitalocean.app
+ * Since we don't know the random suffix at creation time, we return a best-effort URL
+ * using just the app name. The actual URL will be updated once DO reports it.
+ */
+export function constructFallbackUrl(appName: string): string {
+  return `https://${appName}.ondigitalocean.app`;
+}
+
+/**
  * Create a DigitalOcean App Platform application for OpenClaw
  */
 export async function createOpenClawApp(params: CreateAppParams): Promise<any> {
   const { userId, userEmail, aiRole, tier, telegramBotToken, customApiKey, config } = params;
+  const DO_API_TOKEN = getDoToken();
+  const { AI_API_KEY, AI_PROVIDER } = getAIConfig();
 
   // Determine instance size based on tier
   // Valid slugs: basic-xxs, basic-xs, basic-s, basic-m, basic-l
@@ -99,19 +128,17 @@ export async function createOpenClawApp(params: CreateAppParams): Promise<any> {
       // Assume OpenAI-compatible key
       envs.push({ key: 'OPENAI_API_KEY', value: customApiKey, scope: 'RUN_TIME' });
     }
-  } else if (getAIKey()) {
+  } else if (AI_API_KEY) {
     // Platform-provided key
-    const aiKey = getAIKey();
-    const provider = getAIProvider();
-    if (provider === 'anthropic') {
-      envs.push({ key: 'ANTHROPIC_API_KEY', value: aiKey, scope: 'RUN_TIME' });
-    } else if (provider === 'openrouter') {
+    if (AI_PROVIDER === 'anthropic') {
+      envs.push({ key: 'ANTHROPIC_API_KEY', value: AI_API_KEY, scope: 'RUN_TIME' });
+    } else if (AI_PROVIDER === 'openrouter') {
       const model = OPENROUTER_MODELS[tier] || OPENROUTER_MODELS.starter;
-      envs.push({ key: 'OPENAI_API_KEY', value: aiKey, scope: 'RUN_TIME' });
+      envs.push({ key: 'OPENAI_API_KEY', value: AI_API_KEY, scope: 'RUN_TIME' });
       envs.push({ key: 'OPENAI_BASE_URL', value: 'https://openrouter.ai/api/v1', scope: 'RUN_TIME' });
       envs.push({ key: 'OPENAI_MODEL', value: model, scope: 'RUN_TIME' });
     } else {
-      envs.push({ key: 'OPENAI_API_KEY', value: aiKey, scope: 'RUN_TIME' });
+      envs.push({ key: 'OPENAI_API_KEY', value: AI_API_KEY, scope: 'RUN_TIME' });
     }
   }
 
@@ -161,27 +188,29 @@ export async function createOpenClawApp(params: CreateAppParams): Promise<any> {
     ],
   };
 
-  const doToken = getDOToken();
-  if (!doToken) {
-    console.error('[DigitalOcean] DO_API_TOKEN is not set — cannot provision apps');
-    throw new Error('DigitalOcean API token is not configured. Please set DO_API_TOKEN.');
-  }
-
   try {
     const response = await axios.post(
       `${DO_API_BASE}/apps`,
       { spec: appSpec },
       {
         headers: {
-          'Authorization': `Bearer ${doToken}`,
+          'Authorization': `Bearer ${DO_API_TOKEN}`,
           'Content-Type': 'application/json',
         },
         timeout: 30000, // 30s — fail fast if DO API is unreachable
       }
     );
 
+    const app = response.data.app;
+
+    // If live_url is empty (app just created, not deployed yet),
+    // construct a fallback URL from the app name.
+    if (!app.live_url) {
+      app.live_url = constructFallbackUrl(appSpec.name);
+    }
+
     // Return the app data plus our generated gateway token
-    return { ...response.data.app, gatewayToken };
+    return { ...app, gatewayToken };
   } catch (error: any) {
     const doError = error.response?.data || error.message;
     const statusCode = error.response?.status;
@@ -200,10 +229,11 @@ export async function createOpenClawApp(params: CreateAppParams): Promise<any> {
  * Get app details by ID
  */
 export async function getApp(appId: string): Promise<any> {
+  const DO_API_TOKEN = getDoToken();
   try {
     const response = await axios.get(`${DO_API_BASE}/apps/${appId}`, {
       headers: {
-        'Authorization': `Bearer ${getDOToken()}`,
+        'Authorization': `Bearer ${DO_API_TOKEN}`,
       },
     });
 
@@ -230,10 +260,11 @@ export async function getDeploymentStatus(appId: string): Promise<string> {
  * Delete an app
  */
 export async function deleteApp(appId: string): Promise<void> {
+  const DO_API_TOKEN = getDoToken();
   try {
     await axios.delete(`${DO_API_BASE}/apps/${appId}`, {
       headers: {
-        'Authorization': `Bearer ${getDOToken()}`,
+        'Authorization': `Bearer ${DO_API_TOKEN}`,
       },
     });
   } catch (error: any) {
@@ -246,13 +277,14 @@ export async function deleteApp(appId: string): Promise<void> {
  * Restart an app
  */
 export async function restartApp(appId: string): Promise<void> {
+  const DO_API_TOKEN = getDoToken();
   try {
     await axios.post(
       `${DO_API_BASE}/apps/${appId}/deployments`,
       { force_build: false },
       {
         headers: {
-          'Authorization': `Bearer ${getDOToken()}`,
+          'Authorization': `Bearer ${DO_API_TOKEN}`,
           'Content-Type': 'application/json',
         },
       }
@@ -267,12 +299,13 @@ export async function restartApp(appId: string): Promise<void> {
  * Get app logs
  */
 export async function getAppLogs(appId: string, componentName: string = 'openclaw-gateway'): Promise<string[]> {
+  const DO_API_TOKEN = getDoToken();
   try {
     const response = await axios.get(
       `${DO_API_BASE}/apps/${appId}/components/${componentName}/logs`,
       {
         headers: {
-          'Authorization': `Bearer ${getDOToken()}`,
+          'Authorization': `Bearer ${DO_API_TOKEN}`,
         },
         params: {
           type: 'RUN',
