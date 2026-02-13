@@ -177,10 +177,9 @@ export async function createOpenClawApp(params: CreateAppParams): Promise<any> {
       {
         name: 'openclaw-gateway',
         image: {
-          registry_type: 'GHCR',
-          registry: 'openclaw',
-          repository: 'openclaw',
-          tag: 'latest',
+          registry_type: 'DOCKER_HUB',
+          repository: 'alpine/openclaw',
+          tag: '2026.2.12',
         },
         instance_count: 1,
         instance_size_slug: instanceSizes[tier],
