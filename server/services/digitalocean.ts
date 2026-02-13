@@ -53,6 +53,7 @@ export interface AppSpec {
     name: string;
     image: {
       registry_type: string;
+      registry?: string;
       repository: string;
       tag: string;
     };
@@ -177,7 +178,8 @@ export async function createOpenClawApp(params: CreateAppParams): Promise<any> {
         name: 'openclaw-gateway',
         image: {
           registry_type: 'GHCR',
-          repository: 'openclaw/openclaw',
+          registry: 'openclaw',
+          repository: 'openclaw',
           tag: 'latest',
         },
         instance_count: 1,
