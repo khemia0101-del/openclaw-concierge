@@ -170,7 +170,7 @@ export async function createOpenClawApp(params: CreateAppParams): Promise<any> {
   }
 
   const appSpec: AppSpec = {
-    name: `openclaw-${userId}-${Date.now()}`,
+    name: `oc-${userId}-${Date.now().toString(36)}`,
     region: 'nyc',
     services: [
       {
