@@ -1,17 +1,16 @@
 import axios from 'axios';
 import crypto from 'crypto';
 
-const DO_API_TOKEN = process.env.DO_API_TOKEN || '';
 const DO_API_BASE = 'https://api.digitalocean.com/v2';
 
-// The AI API key that powers each OpenClaw instance.
-// Platform provides this — cost is covered by the subscription.
-// Priority: Anthropic > OpenAI > OpenRouter (OpenAI-compatible with free models)
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
-const AI_API_KEY = process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY || OPENROUTER_API_KEY || '';
-const AI_PROVIDER: 'anthropic' | 'openai' | 'openrouter' =
-  process.env.ANTHROPIC_API_KEY ? 'anthropic' :
-  process.env.OPENAI_API_KEY ? 'openai' : 'openrouter';
+// Read env vars lazily via getters so they pick up values set after module load
+function getDOToken() { return process.env.DO_API_TOKEN || ''; }
+function getAIKey() { return process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY || ''; }
+function getAIProvider(): 'anthropic' | 'openai' | 'openrouter' {
+  if (process.env.ANTHROPIC_API_KEY) return 'anthropic';
+  if (process.env.OPENAI_API_KEY) return 'openai';
+  return 'openrouter';
+}
 
 // OpenRouter models per tier — higher plans get smarter AI
 const OPENROUTER_MODELS: Record<string, string> = {
@@ -100,17 +99,19 @@ export async function createOpenClawApp(params: CreateAppParams): Promise<any> {
       // Assume OpenAI-compatible key
       envs.push({ key: 'OPENAI_API_KEY', value: customApiKey, scope: 'RUN_TIME' });
     }
-  } else if (AI_API_KEY) {
+  } else if (getAIKey()) {
     // Platform-provided key
-    if (AI_PROVIDER === 'anthropic') {
-      envs.push({ key: 'ANTHROPIC_API_KEY', value: AI_API_KEY, scope: 'RUN_TIME' });
-    } else if (AI_PROVIDER === 'openrouter') {
+    const aiKey = getAIKey();
+    const provider = getAIProvider();
+    if (provider === 'anthropic') {
+      envs.push({ key: 'ANTHROPIC_API_KEY', value: aiKey, scope: 'RUN_TIME' });
+    } else if (provider === 'openrouter') {
       const model = OPENROUTER_MODELS[tier] || OPENROUTER_MODELS.starter;
-      envs.push({ key: 'OPENAI_API_KEY', value: AI_API_KEY, scope: 'RUN_TIME' });
+      envs.push({ key: 'OPENAI_API_KEY', value: aiKey, scope: 'RUN_TIME' });
       envs.push({ key: 'OPENAI_BASE_URL', value: 'https://openrouter.ai/api/v1', scope: 'RUN_TIME' });
       envs.push({ key: 'OPENAI_MODEL', value: model, scope: 'RUN_TIME' });
     } else {
-      envs.push({ key: 'OPENAI_API_KEY', value: AI_API_KEY, scope: 'RUN_TIME' });
+      envs.push({ key: 'OPENAI_API_KEY', value: aiKey, scope: 'RUN_TIME' });
     }
   }
 
@@ -160,7 +161,8 @@ export async function createOpenClawApp(params: CreateAppParams): Promise<any> {
     ],
   };
 
-  if (!DO_API_TOKEN) {
+  const doToken = getDOToken();
+  if (!doToken) {
     console.error('[DigitalOcean] DO_API_TOKEN is not set — cannot provision apps');
     throw new Error('DigitalOcean API token is not configured. Please set DO_API_TOKEN.');
   }
@@ -171,7 +173,7 @@ export async function createOpenClawApp(params: CreateAppParams): Promise<any> {
       { spec: appSpec },
       {
         headers: {
-          'Authorization': `Bearer ${DO_API_TOKEN}`,
+          'Authorization': `Bearer ${doToken}`,
           'Content-Type': 'application/json',
         },
         timeout: 30000, // 30s — fail fast if DO API is unreachable
@@ -201,7 +203,7 @@ export async function getApp(appId: string): Promise<any> {
   try {
     const response = await axios.get(`${DO_API_BASE}/apps/${appId}`, {
       headers: {
-        'Authorization': `Bearer ${DO_API_TOKEN}`,
+        'Authorization': `Bearer ${getDOToken()}`,
       },
     });
 
@@ -231,7 +233,7 @@ export async function deleteApp(appId: string): Promise<void> {
   try {
     await axios.delete(`${DO_API_BASE}/apps/${appId}`, {
       headers: {
-        'Authorization': `Bearer ${DO_API_TOKEN}`,
+        'Authorization': `Bearer ${getDOToken()}`,
       },
     });
   } catch (error: any) {
@@ -250,7 +252,7 @@ export async function restartApp(appId: string): Promise<void> {
       { force_build: false },
       {
         headers: {
-          'Authorization': `Bearer ${DO_API_TOKEN}`,
+          'Authorization': `Bearer ${getDOToken()}`,
           'Content-Type': 'application/json',
         },
       }
@@ -270,7 +272,7 @@ export async function getAppLogs(appId: string, componentName: string = 'opencla
       `${DO_API_BASE}/apps/${appId}/components/${componentName}/logs`,
       {
         headers: {
-          'Authorization': `Bearer ${DO_API_TOKEN}`,
+          'Authorization': `Bearer ${getDOToken()}`,
         },
         params: {
           type: 'RUN',

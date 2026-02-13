@@ -38,6 +38,7 @@ export const appRouter = router({
           selectedTier: input.tier,
           status: 'checkout_started',
           source: 'onboarding',
+          userId: input.userId,
         });
         
         const session = await stripeService.createCheckoutSession({
@@ -139,6 +140,12 @@ export const appRouter = router({
 
         // Get email from session metadata
         const email = session.metadata?.customerEmail || session.customer_email || '';
+
+        // Update the lead with the temp userId so migrateOrphanedRecords can link
+        // records to the real user when they log in via OAuth
+        if (email) {
+          await db.updateLeadStatus(email, 'paid', input.sessionId, userId);
+        }
 
         return { success: true, email, tier, userId };
       }),
@@ -276,8 +283,11 @@ export const appRouter = router({
               connectedServices: input.connectedServices,
             },
           }).then(async (app) => {
-            // Store the app ID, gateway token, and live URL so customer can access their instance
-            const instanceUrl = app.live_url || (app.default_ingress ? `https://${app.default_ingress}` : null);
+            // Store the app ID, gateway token, and live URL so customer can access their instance.
+            // DO returns empty live_url on initial creation — construct from app name as fallback.
+            const instanceUrl = app.live_url
+              || (app.default_ingress ? `https://${app.default_ingress}` : null)
+              || (app.spec?.name ? `https://${app.spec.name}.ondigitalocean.app` : null);
             await db.updateAIInstance(instanceId, {
               doAppId: app.id,
               status: 'running',
@@ -339,6 +349,12 @@ export const appRouter = router({
 
     // Get user's subscription and instance details
     getStatus: protectedProcedure.query(async ({ ctx }) => {
+      // If the user went through onboarding before logging in, their subscription/instance
+      // were created under a temp userId. Migrate them to the real user now.
+      if (ctx.user.email) {
+        await db.migrateOrphanedRecords(ctx.user.email, ctx.user.id);
+      }
+
       const subscription = await db.getSubscriptionByUserId(ctx.user.id);
       let instance = await db.getAIInstanceByUserId(ctx.user.id);
       const billingRecords = await db.getBillingRecordsByUserId(ctx.user.id);
@@ -410,7 +426,9 @@ export const appRouter = router({
         telegramBotToken: instance.telegramBotToken || undefined,
         config: (instance.config as Record<string, any>) || {},
       }).then(async (app) => {
-        const instanceUrl = app.live_url || (app.default_ingress ? `https://${app.default_ingress}` : null);
+        const instanceUrl = app.live_url
+          || (app.default_ingress ? `https://${app.default_ingress}` : null)
+          || (app.spec?.name ? `https://${app.spec.name}.ondigitalocean.app` : null);
         await db.updateAIInstance(instance.id, {
           doAppId: app.id,
           status: 'running',
