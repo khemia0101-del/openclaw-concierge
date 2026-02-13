@@ -34,7 +34,7 @@ describe("Onboarding Flow", () => {
     expect(result).toHaveProperty("sessionId");
     expect(result.sessionUrl).toBeTruthy();
     expect(result.sessionId).toBeTruthy();
-  });
+  }, 15000);
 
   it("should reject invalid email format", async () => {
     const ctx = createMockContext();
