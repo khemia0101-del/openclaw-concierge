@@ -298,3 +298,9 @@
 ## Phase 37: Fix DO_API_TOKEN Timing & Empty live_url
 - [x] Fix DO_API_TOKEN read at request time instead of module load time in digitalocean.ts
 - [x] Construct fallback URL from DO app name pattern when live_url is empty
+
+## Phase 38: Fix Docker Image Error in Deployment
+- [x] Investigate "Image does not exist or is private" error from DigitalOcean API
+- [x] Fix Docker image registry configuration in digitalocean.ts
+- [x] Verify the correct OpenClaw Docker image exists and is publicly accessible
+- [x] Test end-to-end deployment workflow
