@@ -38,6 +38,7 @@ export const appRouter = router({
           selectedTier: input.tier,
           status: 'checkout_started',
           source: 'onboarding',
+          userId: input.userId,
         });
         
         const session = await stripeService.createCheckoutSession({
@@ -140,6 +141,12 @@ export const appRouter = router({
         // Get email from session metadata
         const email = session.metadata?.customerEmail || session.customer_email || '';
 
+        // Update the lead with the temp userId so migrateOrphanedRecords can link
+        // records to the real user when they log in via OAuth
+        if (email) {
+          await db.updateLeadStatus(email, 'paid', input.sessionId, userId);
+        }
+
         return { success: true, email, tier, userId };
       }),
     
@@ -150,19 +157,8 @@ export const appRouter = router({
         sessionId: z.string().min(1),
       }))
       .query(async ({ input }) => {
-        // Quick DB lookup — no external API calls.
         const instance = await db.getAIInstanceByUserId(input.userId);
         if (!instance) return null;
-
-        // Auto-unstick: if provisioning for more than 45 seconds, promote to running.
-        // The user's config is saved in the DB; DO provisioning runs separately.
-        if (instance.status === 'provisioning') {
-          const createdAt = new Date(instance.createdAt).getTime();
-          if (Date.now() - createdAt > 45_000) {
-            await db.updateAIInstance(instance.id, { status: 'running' });
-            return { status: 'running', errorMessage: null, doAppId: instance.doAppId };
-          }
-        }
 
         return {
           status: instance.status,
@@ -287,26 +283,34 @@ export const appRouter = router({
               connectedServices: input.connectedServices,
             },
           }).then(async (app) => {
+            // Store the app ID, gateway token, and live URL so customer can access their instance.
+            // DO returns empty live_url on initial creation — construct from app name as fallback.
+            const instanceUrl = app.live_url
+              || (app.default_ingress ? `https://${app.default_ingress}` : null)
+              || (app.spec?.name ? `https://${app.spec.name}.ondigitalocean.app` : null);
             await db.updateAIInstance(instanceId, {
               doAppId: app.id,
               status: 'running',
-              deploymentId: app.live_url || null,
-            });
-            console.log('[Deploy] DO app created:', app.id, 'live_url:', app.live_url);
+              config: {
+                communicationChannels: input.communicationChannels,
+                connectedServices: input.connectedServices,
+                gatewayToken: app.gatewayToken,
+                instanceUrl,
+              },
+            } as any);
+            console.log('[Deploy] DO app created:', app.id, 'URL:', instanceUrl);
           }).catch(async (error: any) => {
             console.error('[Deploy] DO provisioning failed:', error.message);
-            // Mark as running anyway — the config is saved, user can reach dashboard.
-            // DO provisioning can be retried later.
             await db.updateAIInstance(instanceId, {
-              status: 'running',
-              errorMessage: `Note: Cloud provisioning pending — ${error.message}`,
+              status: 'error',
+              errorMessage: `Deployment failed: ${error.message}. Please contact support.`,
             });
           });
         } else {
-          // No DO token — mark as running immediately so user isn't stuck.
-          console.warn('[Deploy] DO_API_TOKEN not set — skipping cloud provisioning');
+          console.error('[Deploy] DO_API_TOKEN not set — cannot provision');
           await db.updateAIInstance(instanceId, {
-            status: 'running',
+            status: 'error',
+            errorMessage: 'Cloud hosting is not configured. Please contact support.',
           });
         }
 
@@ -345,6 +349,12 @@ export const appRouter = router({
 
     // Get user's subscription and instance details
     getStatus: protectedProcedure.query(async ({ ctx }) => {
+      // If the user went through onboarding before logging in, their subscription/instance
+      // were created under a temp userId. Migrate them to the real user now.
+      if (ctx.user.email) {
+        await db.migrateOrphanedRecords(ctx.user.email, ctx.user.id);
+      }
+
       const subscription = await db.getSubscriptionByUserId(ctx.user.id);
       let instance = await db.getAIInstanceByUserId(ctx.user.id);
       const billingRecords = await db.getBillingRecordsByUserId(ctx.user.id);
@@ -381,6 +391,66 @@ export const appRouter = router({
       return { success: true };
     }),
     
+    // Retry deployment for failed/errored instances
+    retryDeploy: protectedProcedure.mutation(async ({ ctx }) => {
+      const instance = await db.getAIInstanceByUserId(ctx.user.id);
+      if (!instance) {
+        throw new Error('No instance found');
+      }
+      if (instance.status !== 'error') {
+        throw new Error('Instance is not in an error state');
+      }
+
+      const subscription = await db.getSubscriptionByUserId(ctx.user.id);
+      if (!subscription) {
+        throw new Error('No active subscription found');
+      }
+
+      if (!process.env.DO_API_TOKEN) {
+        throw new Error('Cloud hosting is not configured. Please contact support.');
+      }
+
+      // Reset to provisioning
+      await db.updateAIInstance(instance.id, {
+        status: 'provisioning',
+        errorMessage: null,
+        createdAt: new Date(), // Reset timer
+      } as any);
+
+      // Fire off DO provisioning
+      digitaloceanService.createOpenClawApp({
+        userId: ctx.user.id,
+        userEmail: ctx.user.email || '',
+        aiRole: instance.aiRole || '',
+        tier: subscription.tier,
+        telegramBotToken: instance.telegramBotToken || undefined,
+        config: (instance.config as Record<string, any>) || {},
+      }).then(async (app) => {
+        const instanceUrl = app.live_url
+          || (app.default_ingress ? `https://${app.default_ingress}` : null)
+          || (app.spec?.name ? `https://${app.spec.name}.ondigitalocean.app` : null);
+        await db.updateAIInstance(instance.id, {
+          doAppId: app.id,
+          status: 'running',
+          errorMessage: null,
+          config: {
+            ...((instance.config as Record<string, any>) || {}),
+            gatewayToken: app.gatewayToken,
+            instanceUrl,
+          },
+        } as any);
+        console.log('[RetryDeploy] DO app created:', app.id, 'URL:', instanceUrl);
+      }).catch(async (error: any) => {
+        console.error('[RetryDeploy] DO provisioning failed:', error.message);
+        await db.updateAIInstance(instance.id, {
+          status: 'error',
+          errorMessage: `Deployment failed: ${error.message}`,
+        });
+      });
+
+      return { success: true };
+    }),
+
     // Get instance logs
     getLogs: protectedProcedure.query(async ({ ctx }) => {
       const instance = await db.getAIInstanceByUserId(ctx.user.id);

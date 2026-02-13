@@ -203,7 +203,7 @@ export async function createOpenClawApp(params: CreateAppParams): Promise<any> {
 
     const app = response.data.app;
 
-    // Issue 2 fix: If live_url is empty (app just created, not deployed yet),
+    // If live_url is empty (app just created, not deployed yet),
     // construct a fallback URL from the app name.
     if (!app.live_url) {
       app.live_url = constructFallbackUrl(appSpec.name);
@@ -298,7 +298,7 @@ export async function restartApp(appId: string): Promise<void> {
 /**
  * Get app logs
  */
-export async function getAppLogs(appId: string, componentName: string = 'openclaw-instance'): Promise<string[]> {
+export async function getAppLogs(appId: string, componentName: string = 'openclaw-gateway'): Promise<string[]> {
   const DO_API_TOKEN = getDoToken();
   try {
     const response = await axios.get(

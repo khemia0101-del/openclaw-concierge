@@ -145,9 +145,9 @@ export default function OnboardingConfigure() {
           toast.success("AI Employee deployed successfully!");
           navigate("/dashboard");
         }}
-        onError={(error) => {
-          toast.error(error);
-          setDeploying(false);
+        onError={() => {
+          // Redirect to dashboard where the error details are shown
+          navigate("/dashboard");
         }}
       />
     );

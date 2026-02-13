@@ -8,6 +8,7 @@ import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { Loader2, Check, ArrowRight, ArrowLeft } from "lucide-react";
+import { useAuth } from "@/_core/hooks/useAuth";
 
 type Tier = "starter" | "pro" | "business";
 
@@ -34,9 +35,10 @@ const PRICING_TIERS = {
 
 export default function Onboarding() {
   const [, navigate] = useLocation();
+  const { user } = useAuth();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
-  
+
   // Form state
   const [email, setEmail] = useState("");
   const [selectedTier, setSelectedTier] = useState<Tier>("starter");
@@ -58,13 +60,14 @@ export default function Onboarding() {
   const handlePayment = async () => {
     setLoading(true);
     try {
-      // Temporary user ID for MVP: use seconds (not ms) to fit within MySQL INT range (max 2,147,483,647)
-      const tempUserId = Math.floor(Date.now() / 1000);
-      
+      // Use the real user ID if already authenticated, otherwise generate a temp one.
+      // The temp ID will be migrated to the real user on dashboard access.
+      const userId = user?.id ?? Math.floor(Date.now() / 1000);
+
       const result = await createCheckout.mutateAsync({
         email,
         tier: selectedTier,
-        userId: tempUserId,
+        userId,
         origin: window.location.origin,
       });
       
