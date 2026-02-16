@@ -4,6 +4,36 @@ import crypto from 'crypto';
 const DO_API_BASE = 'https://api.digitalocean.com/v2';
 
 /**
+ * Retry wrapper for async operations with exponential backoff
+ */
+async function withRetry<T>(
+  operation: () => Promise<T>,
+  maxRetries: number = 3,
+  baseDelayMs: number = 1000
+): Promise<T> {
+  let lastError: Error | undefined;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (error: any) {
+      lastError = error;
+      const isRetryable = error.response?.status >= 500 || error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT';
+      
+      if (!isRetryable || attempt === maxRetries - 1) {
+        throw error;
+      }
+
+      const delay = baseDelayMs * Math.pow(2, attempt);
+      console.log(`[DigitalOcean] Retry ${attempt + 1}/${maxRetries} after ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+
+  throw lastError || new Error('Operation failed after retries');
+}
+
+/**
  * Read DO_API_TOKEN at request time (not module load time).
  * This avoids the race condition where dotenv hasn't loaded yet
  * when the module is first imported.
@@ -189,16 +219,18 @@ export async function createOpenClawApp(params: CreateAppParams): Promise<any> {
   };
 
   try {
-    const response = await axios.post(
-      `${DO_API_BASE}/apps`,
-      { spec: appSpec },
-      {
-        headers: {
-          'Authorization': `Bearer ${DO_API_TOKEN}`,
-          'Content-Type': 'application/json',
-        },
-        timeout: 30000, // 30s — fail fast if DO API is unreachable
-      }
+    const response = await withRetry(() =>
+      axios.post(
+        `${DO_API_BASE}/apps`,
+        { spec: appSpec },
+        {
+          headers: {
+            'Authorization': `Bearer ${DO_API_TOKEN}`,
+            'Content-Type': 'application/json',
+          },
+          timeout: 30000, // 30s — fail fast if DO API is unreachable
+        }
+      )
     );
 
     const app = response.data.app;
@@ -231,11 +263,13 @@ export async function createOpenClawApp(params: CreateAppParams): Promise<any> {
 export async function getApp(appId: string): Promise<any> {
   const DO_API_TOKEN = getDoToken();
   try {
-    const response = await axios.get(`${DO_API_BASE}/apps/${appId}`, {
-      headers: {
-        'Authorization': `Bearer ${DO_API_TOKEN}`,
-      },
-    });
+    const response = await withRetry(() =>
+      axios.get(`${DO_API_BASE}/apps/${appId}`, {
+        headers: {
+          'Authorization': `Bearer ${DO_API_TOKEN}`,
+        },
+      })
+    );
 
     return response.data.app;
   } catch (error: any) {
@@ -262,11 +296,13 @@ export async function getDeploymentStatus(appId: string): Promise<string> {
 export async function deleteApp(appId: string): Promise<void> {
   const DO_API_TOKEN = getDoToken();
   try {
-    await axios.delete(`${DO_API_BASE}/apps/${appId}`, {
-      headers: {
-        'Authorization': `Bearer ${DO_API_TOKEN}`,
-      },
-    });
+    await withRetry(() =>
+      axios.delete(`${DO_API_BASE}/apps/${appId}`, {
+        headers: {
+          'Authorization': `Bearer ${DO_API_TOKEN}`,
+        },
+      })
+    );
   } catch (error: any) {
     console.error('[DigitalOcean] Failed to delete app:', error.response?.data || error.message);
     throw new Error('Failed to delete app');
@@ -279,15 +315,17 @@ export async function deleteApp(appId: string): Promise<void> {
 export async function restartApp(appId: string): Promise<void> {
   const DO_API_TOKEN = getDoToken();
   try {
-    await axios.post(
-      `${DO_API_BASE}/apps/${appId}/deployments`,
-      { force_build: false },
-      {
-        headers: {
-          'Authorization': `Bearer ${DO_API_TOKEN}`,
-          'Content-Type': 'application/json',
-        },
-      }
+    await withRetry(() =>
+      axios.post(
+        `${DO_API_BASE}/apps/${appId}/deployments`,
+        { force_build: false },
+        {
+          headers: {
+            'Authorization': `Bearer ${DO_API_TOKEN}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      )
     );
   } catch (error: any) {
     console.error('[DigitalOcean] Failed to restart app:', error.response?.data || error.message);
@@ -301,18 +339,20 @@ export async function restartApp(appId: string): Promise<void> {
 export async function getAppLogs(appId: string, componentName: string = 'openclaw-gateway'): Promise<string[]> {
   const DO_API_TOKEN = getDoToken();
   try {
-    const response = await axios.get(
-      `${DO_API_BASE}/apps/${appId}/components/${componentName}/logs`,
-      {
-        headers: {
-          'Authorization': `Bearer ${DO_API_TOKEN}`,
-        },
-        params: {
-          type: 'RUN',
-          follow: false,
-          tail_lines: 100,
-        },
-      }
+    const response = await withRetry(() =>
+      axios.get(
+        `${DO_API_BASE}/apps/${appId}/components/${componentName}/logs`,
+        {
+          headers: {
+            'Authorization': `Bearer ${DO_API_TOKEN}`,
+          },
+          params: {
+            type: 'RUN',
+            follow: false,
+            tail_lines: 100,
+          },
+        }
+      )
     );
 
     return response.data.logs || [];

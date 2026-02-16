@@ -73,6 +73,17 @@ export type AIInstance = typeof aiInstances.$inferSelect;
 export type InsertAIInstance = typeof aiInstances.$inferInsert;
 
 /**
+ * AI Instance configuration structure
+ */
+export interface AIInstanceConfig {
+  communicationChannels?: string[];
+  connectedServices?: string[];
+  gatewayToken?: string;
+  instanceUrl?: string | null;
+  [key: string]: unknown;
+}
+
+/**
  * Billing Records table - tracks all charges
  */
 export const billingRecords = mysqlTable("billingRecords", {

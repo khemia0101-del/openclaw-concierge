@@ -7,6 +7,7 @@ import * as db from "./db";
 import * as stripeService from "./services/stripe";
 import * as digitaloceanService from "./services/digitalocean";
 import { affiliateRouter } from "./api/trpc/routers/affiliate";
+import type { AIInstanceConfig } from "../drizzle/schema";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -235,16 +236,17 @@ export const appRouter = router({
           instanceId = existingInstance.id;
           // Reset instance for retry if it was stuck or errored
           if (existingInstance.status === 'error' || existingInstance.status === 'provisioning') {
+            const config: AIInstanceConfig = {
+              communicationChannels: input.communicationChannels,
+              connectedServices: input.connectedServices,
+            };
             await db.updateAIInstance(instanceId, {
               status: 'provisioning',
               errorMessage: null,
               aiRole: input.aiRole,
               telegramBotToken: input.telegramBotToken,
-              config: {
-                communicationChannels: input.communicationChannels,
-                connectedServices: input.connectedServices,
-              },
-            } as any);
+              config,
+            });
           }
         } else {
           try {
@@ -288,16 +290,17 @@ export const appRouter = router({
             const instanceUrl = app.live_url
               || (app.default_ingress ? `https://${app.default_ingress}` : null)
               || (app.spec?.name ? `https://${app.spec.name}.ondigitalocean.app` : null);
+            const config: AIInstanceConfig = {
+              communicationChannels: input.communicationChannels,
+              connectedServices: input.connectedServices,
+              gatewayToken: app.gatewayToken,
+              instanceUrl,
+            };
             await db.updateAIInstance(instanceId, {
               doAppId: app.id,
               status: 'running',
-              config: {
-                communicationChannels: input.communicationChannels,
-                connectedServices: input.connectedServices,
-                gatewayToken: app.gatewayToken,
-                instanceUrl,
-              },
-            } as any);
+              config,
+            });
             console.log('[Deploy] DO app created:', app.id, 'URL:', instanceUrl);
           }).catch(async (error: any) => {
             console.error('[Deploy] DO provisioning failed:', error.message);
@@ -414,31 +417,32 @@ export const appRouter = router({
       await db.updateAIInstance(instance.id, {
         status: 'provisioning',
         errorMessage: null,
-        createdAt: new Date(), // Reset timer
-      } as any);
+      });
 
       // Fire off DO provisioning
+      const existingConfig = (instance.config as AIInstanceConfig) || {};
       digitaloceanService.createOpenClawApp({
         userId: ctx.user.id,
         userEmail: ctx.user.email || '',
         aiRole: instance.aiRole || '',
         tier: subscription.tier,
         telegramBotToken: instance.telegramBotToken || undefined,
-        config: (instance.config as Record<string, any>) || {},
+        config: existingConfig,
       }).then(async (app) => {
         const instanceUrl = app.live_url
           || (app.default_ingress ? `https://${app.default_ingress}` : null)
           || (app.spec?.name ? `https://${app.spec.name}.ondigitalocean.app` : null);
+        const updatedConfig: AIInstanceConfig = {
+          ...existingConfig,
+          gatewayToken: app.gatewayToken,
+          instanceUrl,
+        };
         await db.updateAIInstance(instance.id, {
           doAppId: app.id,
           status: 'running',
           errorMessage: null,
-          config: {
-            ...((instance.config as Record<string, any>) || {}),
-            gatewayToken: app.gatewayToken,
-            instanceUrl,
-          },
-        } as any);
+          config: updatedConfig,
+        });
         console.log('[RetryDeploy] DO app created:', app.id, 'URL:', instanceUrl);
       }).catch(async (error: any) => {
         console.error('[RetryDeploy] DO provisioning failed:', error.message);

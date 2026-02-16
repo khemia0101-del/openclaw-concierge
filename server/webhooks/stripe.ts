@@ -1,8 +1,26 @@
 import { Request, Response } from 'express';
 import { constructWebhookEvent, PRICING, getRenewalDate } from '../services/stripe';
 import * as db from '../db';
+import Stripe from 'stripe';
 
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
+
+// Valid webhook event types we handle
+const VALID_EVENT_TYPES = [
+  'checkout.session.completed',
+  'payment_intent.payment_failed',
+  'customer.subscription.created',
+  'customer.subscription.updated',
+  'customer.subscription.deleted',
+  'invoice.payment_succeeded',
+  'invoice.payment_failed',
+] as const;
+
+type ValidEventType = typeof VALID_EVENT_TYPES[number];
+
+function isValidEventType(type: string): type is ValidEventType {
+  return VALID_EVENT_TYPES.includes(type as ValidEventType);
+}
 
 export async function handleStripeWebhook(req: Request, res: Response) {
   const signature = req.headers['stripe-signature'] as string | undefined;
@@ -17,7 +35,7 @@ export async function handleStripeWebhook(req: Request, res: Response) {
     return res.status(500).json({ error: 'Webhook secret not configured' });
   }
 
-  let event;
+  let event: Stripe.Event;
   try {
     event = constructWebhookEvent(req.body, signature, WEBHOOK_SECRET);
   } catch (err: any) {
@@ -25,8 +43,13 @@ export async function handleStripeWebhook(req: Request, res: Response) {
     return res.status(400).json({ error: 'Invalid signature' });
   }
 
-  // Signature verified — acknowledge receipt immediately so Stripe doesn't retry.
-  // Process the event asynchronously.
+  // Validate event type
+  if (!isValidEventType(event.type)) {
+    console.log(`[Stripe Webhook] Ignoring unhandled event type: ${event.type}`);
+    return res.status(200).json({ received: true, ignored: true });
+  }
+
+  // Signature verified and event type validated — acknowledge receipt immediately
   res.status(200).json({ received: true });
 
   // Handle test events — already responded
@@ -40,10 +63,10 @@ export async function handleStripeWebhook(req: Request, res: Response) {
   });
 }
 
-async function processWebhookEvent(event: any) {
+async function processWebhookEvent(event: Stripe.Event) {
   switch (event.type) {
     case 'checkout.session.completed': {
-      const session = event.data.object as any;
+      const session = event.data.object as Stripe.Checkout.Session;
       const userId = parseInt(session.metadata?.userId || session.client_reference_id || '0');
       const tier = session.metadata?.tier as 'starter' | 'pro' | 'business';
 
@@ -63,11 +86,11 @@ async function processWebhookEvent(event: any) {
 
         let stripeCustomerId: string | null = null;
         if (typeof session.customer === 'string') stripeCustomerId = session.customer;
-        else if (session.customer?.id) stripeCustomerId = session.customer.id;
+        else if (session.customer && 'id' in session.customer) stripeCustomerId = session.customer.id;
 
         let stripeSubscriptionId: string | null = null;
         if (typeof session.subscription === 'string') stripeSubscriptionId = session.subscription;
-        else if (session.subscription?.id) stripeSubscriptionId = session.subscription.id;
+        else if (session.subscription && 'id' in session.subscription) stripeSubscriptionId = session.subscription.id;
 
         const renewalDate = await getRenewalDate(stripeSubscriptionId);
 
@@ -88,7 +111,7 @@ async function processWebhookEvent(event: any) {
           type: 'setup_fee',
           amount: (PRICING[tier].setupFee / 100).toFixed(2),
           status: 'completed',
-          stripeChargeId: session.payment_intent as string,
+          stripeChargeId: session.payment_intent as string | undefined,
         });
 
         await db.createBillingRecord({
@@ -114,12 +137,53 @@ async function processWebhookEvent(event: any) {
     }
 
     case 'payment_intent.payment_failed': {
-      const paymentIntent = event.data.object as any;
-      console.error(`[Stripe Webhook] Payment failed: ${paymentIntent.id}`);
+      const paymentIntent = event.data.object as Stripe.PaymentIntent;
+      console.error(`[Stripe Webhook] Payment failed: ${paymentIntent.id}`, {
+        amount: paymentIntent.amount,
+        currency: paymentIntent.currency,
+        error: paymentIntent.last_payment_error?.message,
+      });
+      break;
+    }
+
+    case 'customer.subscription.created': {
+      const subscription = event.data.object as Stripe.Subscription;
+      console.log(`[Stripe Webhook] Subscription created: ${subscription.id}`);
+      break;
+    }
+
+    case 'customer.subscription.updated': {
+      const subscription = event.data.object as Stripe.Subscription;
+      console.log(`[Stripe Webhook] Subscription updated: ${subscription.id}`, {
+        status: subscription.status,
+        cancelAtPeriodEnd: subscription.cancel_at_period_end,
+      });
+      break;
+    }
+
+    case 'customer.subscription.deleted': {
+      const subscription = event.data.object as Stripe.Subscription;
+      console.log(`[Stripe Webhook] Subscription cancelled: ${subscription.id}`);
+      // TODO: Update subscription status in database
+      break;
+    }
+
+    case 'invoice.payment_succeeded': {
+      const invoice = event.data.object as Stripe.Invoice;
+      console.log(`[Stripe Webhook] Invoice payment succeeded: ${invoice.id}`);
+      break;
+    }
+
+    case 'invoice.payment_failed': {
+      const invoice = event.data.object as Stripe.Invoice;
+      console.error(`[Stripe Webhook] Invoice payment failed: ${invoice.id}`, {
+        amountDue: invoice.amount_due,
+        attemptCount: invoice.attempt_count,
+      });
       break;
     }
 
     default:
-      break;
+      console.log(`[Stripe Webhook] Unhandled event type: ${(event as any).type}`);
   }
 }
