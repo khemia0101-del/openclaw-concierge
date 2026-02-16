@@ -83,6 +83,7 @@ export interface AppSpec {
     name: string;
     image: {
       registry_type: string;
+      registry?: string;
       repository: string;
       tag: string;
     };
@@ -208,7 +209,7 @@ export async function createOpenClawApp(params: CreateAppParams): Promise<any> {
         image: {
           registry_type: 'DOCKER_HUB',
           repository: 'alpine/openclaw',
-          tag: 'main',
+          tag: '2026.2.12',
         },
         instance_count: 1,
         instance_size_slug: instanceSizes[tier],
