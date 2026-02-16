@@ -168,7 +168,8 @@ export async function createAIInstance(data: Partial<InsertAIInstance> & { userI
   if (!db) throw new Error('Database not available');
   
   const result = await db.insert(aiInstances).values(data as any);
-  return result;
+  // MySQL returns insertId directly on the result object
+  return { insertId: result[0]?.insertId || 0 };
 }
 
 export async function getAIInstanceByUserId(userId: number) {
@@ -192,7 +193,7 @@ export async function createBillingRecord(data: Partial<InsertBillingRecord> & {
   if (!db) throw new Error('Database not available');
   
   const result = await db.insert(billingRecords).values(data as any);
-  return result;
+  return { insertId: result[0]?.insertId || 0 };
 }
 
 export async function getBillingRecordsByUserId(userId: number) {

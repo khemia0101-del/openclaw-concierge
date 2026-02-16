@@ -32,8 +32,8 @@ function getAIConfig() {
 // OpenRouter models per tier — higher plans get smarter AI
 const OPENROUTER_MODELS: Record<string, string> = {
   starter: 'meta-llama/llama-3.1-8b-instruct:free',
-  pro: 'anthropic/claude-3.5-haiku',
-  business: 'anthropic/claude-sonnet-4-5',
+  pro: 'anthropic/claude-3-5-haiku-20241022',
+  business: 'anthropic/claude-3-5-sonnet-20241022',
 };
 
 export interface CreateAppParams {
