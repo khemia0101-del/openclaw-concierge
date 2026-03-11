@@ -7,6 +7,7 @@ import * as db from "./db";
 import * as stripeService from "./services/stripe";
 import * as digitaloceanService from "./services/digitalocean";
 import { affiliateRouter } from "./api/trpc/routers/affiliate";
+import { dueDiligenceRouter } from "./api/trpc/routers/dueDiligence";
 import type { AIInstanceConfig } from "../drizzle/schema";
 
 export const appRouter = router({
@@ -322,6 +323,7 @@ export const appRouter = router({
   }),
   
   affiliate: affiliateRouter,
+  dueDiligence: dueDiligenceRouter,
   
   dashboard: router({
     // Diagnostic: test DO API connectivity (temporary - remove after debugging)

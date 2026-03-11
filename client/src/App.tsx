@@ -10,6 +10,7 @@ import OnboardingConfigure from "./pages/OnboardingConfigure";
 import Dashboard from "./pages/Dashboard";
 import AffiliateDashboard from "./pages/AffiliateDashboard";
 import AffiliateProgram from "./pages/AffiliateProgram";
+import DueDiligence from "./pages/DueDiligence";
 
 function Router() {
   return (
@@ -18,6 +19,7 @@ function Router() {
       <Route path={"/onboarding"} component={Onboarding} />
       <Route path={"/onboarding/configure"} component={OnboardingConfigure} />
       <Route path={"/dashboard"} component={Dashboard} />
+      <Route path={"/due-diligence"} component={DueDiligence} />
       <Route path={"/affiliate-program"} component={AffiliateProgram} />
       <Route path={"/affiliate"} component={AffiliateDashboard} />
       <Route path={"/404"} component={NotFound} />
